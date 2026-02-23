@@ -1,0 +1,42 @@
+html, body, #root {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100%;
+  height: 100%;
+  background: #05070d !important; /* bg0 */
+}
+
+
+
+
+* {
+  box-sizing: border-box;
+}
+
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* ✅ خلفية عامة للتطبيق (bg0) */
+body {
+  background: #05070d;
+  color: #ffffff;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+/* ✅ خلي root يملى الشاشة بدون padding/margin */
+#root {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* (اختياري) لو بدك تمنع scroll أفقي بسبب ظلال/غلو */
+body {
+  overflow-x: hidden;
+}
