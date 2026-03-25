@@ -15,7 +15,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\FileUpload;
 
 class MealResource extends Resource
 {
@@ -42,10 +42,10 @@ class MealResource extends Resource
 
             Select::make('category')
                 ->options([
-                    'bulking'      => 'Bulking',
+                    'bulking' => 'Bulking',
                     'weight_gain' => 'Weight Gain',
-                    'healthy'     => 'Healthy',
-                    'cutting'     => 'Cutting',
+                    'healthy' => 'Healthy',
+                    'cutting' => 'Cutting',
                 ])
                 ->required(),
 
@@ -54,16 +54,14 @@ class MealResource extends Resource
             TextInput::make('carbs')->numeric(),
             TextInput::make('fats')->numeric(),
 
-            Textarea::make('ingredients')
-                ->label('Ingredients (JSON)')
-                ->rows(3),
-
-            TextInput::make('image_url')
-                ->label('Image URL')
-                ->url(),
-
-            Toggle::make('is_active')
-                ->default(true),
+            FileUpload::make('image_url')
+                ->label('Meal Image')
+                ->image()
+                ->disk('public')
+                ->directory('meals')
+                ->visibility('public')
+                ->imageEditor()
+                ->nullable(),
         ]);
     }
 
@@ -71,6 +69,8 @@ class MealResource extends Resource
     {
         return $table
             ->columns([
+                
+
                 Tables\Columns\TextColumn::make('name')->searchable(),
                 Tables\Columns\TextColumn::make('category')->badge(),
                 Tables\Columns\TextColumn::make('calories'),
@@ -78,7 +78,6 @@ class MealResource extends Resource
             ->actions([
                 Tables\Actions\EditAction::make(),
 
-                // 👇 Assign Meal → Member (مع day_of_week)
                 Action::make('assign')
                     ->label('Assign to Member')
                     ->icon('heroicon-o-user-plus')
@@ -110,9 +109,9 @@ class MealResource extends Resource
                             ->label('Meal Time')
                             ->options([
                                 'breakfast' => 'Breakfast',
-                                'lunch'     => 'Lunch',
-                                'dinner'    => 'Dinner',
-                                'snack'     => 'Snack',
+                                'lunch' => 'Lunch',
+                                'dinner' => 'Dinner',
+                                'snack' => 'Snack',
                             ])
                             ->required(),
 

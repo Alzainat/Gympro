@@ -20,6 +20,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Tabs;
 use Filament\Forms\Components\Tabs\Tab;
+use Filament\Forms\Components\FileUpload;
 
 class WorkoutRoutineResource extends Resource
 {
@@ -62,6 +63,9 @@ class WorkoutRoutineResource extends Resource
                                     TextInput::make('target_muscle')
                                         ->label('Target Muscle'),
 
+                                    TextInput::make('equipment')
+                                        ->label('Equipment'),
+
                                     Select::make('difficulty')
                                         ->options([
                                             'beginner' => 'Beginner',
@@ -69,9 +73,16 @@ class WorkoutRoutineResource extends Resource
                                             'advanced' => 'Advanced',
                                         ]),
 
-                                    TextInput::make('video_url')
-                                        ->label('Video URL')
-                                        ->url(),
+                                   
+
+                                    FileUpload::make('image_url')
+                                        ->label('Exercise Image')
+                                        ->image()
+                                        ->disk('public')
+                                        ->directory('exercises')
+                                        ->visibility('public')
+                                        ->imageEditor()
+                                        ->nullable(),
                                 ])
                                 ->action(function (array $data, callable $set) {
                                     $exercise = Exercise::create($data);
@@ -92,15 +103,7 @@ class WorkoutRoutineResource extends Resource
                     TextInput::make('rest_seconds')
                         ->numeric()
                         ->default(60),
-
-                    TextInput::make('order_index')
-                        ->numeric()
-                        ->label('Order'),
-
-                    Textarea::make('notes')
-                        ->rows(2),
                 ])
-                ->orderable('order_index')
                 ->collapsed()
                 ->columnSpanFull();
         };

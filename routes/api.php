@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Api\MemberTrainerSubscriptionController;
 // Auth
 use App\Http\Controllers\Api\Auth\AuthController;
 
@@ -33,6 +33,8 @@ use App\Http\Controllers\Api\Common\TrainerDirectoryController;
 
 // ✅ Notifications (Common)
 use App\Http\Controllers\Api\Common\NotificationsController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\NewPasswordController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,6 +43,8 @@ use App\Http\Controllers\Api\Common\NotificationsController;
 */
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
+Route::post('/forgot-password', [PasswordResetLinkController::class, 'store']);
+Route::post('/reset-password', [NewPasswordController::class, 'store']);
 
 /*
 |--------------------------------------------------------------------------
@@ -87,6 +91,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/trainers/{trainerId}', [TrainerDirectoryController::class, 'show']); // تفاصيل
         Route::get('/trainers/{trainerId}/sessions', [TrainerDirectoryController::class, 'sessions']); // جلسات مدرب
         Route::get('/trainers/{trainerId}/schedule', [TrainerDirectoryController::class, 'schedule']); // (اختياري) availability
+
+        Route::post('/member/trainers/{trainer}/subscribe', [MemberTrainerSubscriptionController::class, 'store']);
+        Route::delete('/member/trainer-subscription', [MemberTrainerSubscriptionController::class, 'destroy']);
     });
 
     /*
@@ -97,7 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:member')->group(function () {
 
         // Profile
-        Route::get('/member/me', [ProfileController::class, 'me']);
+
 
         // Workouts (جدول التمارين)
         Route::get('/member/workouts', [WorkoutController::class, 'index']);

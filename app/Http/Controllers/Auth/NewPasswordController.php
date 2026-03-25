@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Auth;
-
+use Illuminate\Validation\Rules\Password as PasswordRule;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
@@ -31,11 +31,23 @@ class NewPasswordController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'token' => ['required'],
-            'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
-        ]);
-
+    'token' => ['required'],
+    'email' => [
+        'required',
+        'string',
+        'email',
+        'regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/',
+        'exists:users,email',
+    ],
+    'password' => [
+        'required',
+        'confirmed',
+        PasswordRule::min(8)
+            ->mixedCase()
+            ->numbers()
+            ->symbols(),
+    ],
+]);
         // Here we will attempt to reset the user's password. If it is successful we
         // will update the password on an actual user model and persist it to the
         // database. Otherwise we will parse the error and return the response.

@@ -11,27 +11,139 @@ class HealthConditionController extends Controller
 {
     /**
      * ✅ In-code exercises dataset (always used)
-     * Keep it English-friendly so keyword matching works.
+     * Added image for each exercise.
      */
     private function defaultExercises(): array
     {
         return [
-            ['id' => 1001, 'name' => 'Barbell Squat', 'target_muscle' => 'legs', 'equipment' => 'barbell', 'difficulty' => 'intermediate'],
-            ['id' => 1002, 'name' => 'Goblet Squat', 'target_muscle' => 'legs', 'equipment' => 'dumbbell', 'difficulty' => 'beginner'],
-            ['id' => 1003, 'name' => 'Leg Press', 'target_muscle' => 'legs', 'equipment' => 'machine', 'difficulty' => 'beginner'],
-            ['id' => 1004, 'name' => 'Walking Lunges', 'target_muscle' => 'legs', 'equipment' => 'bodyweight', 'difficulty' => 'beginner'],
-            ['id' => 1005, 'name' => 'Deadlift', 'target_muscle' => 'back', 'equipment' => 'barbell', 'difficulty' => 'advanced'],
-            ['id' => 1006, 'name' => 'Romanian Deadlift', 'target_muscle' => 'hamstrings', 'equipment' => 'barbell', 'difficulty' => 'intermediate'],
-            ['id' => 1007, 'name' => 'Bench Press', 'target_muscle' => 'chest', 'equipment' => 'barbell', 'difficulty' => 'intermediate'],
-            ['id' => 1008, 'name' => 'Push Ups', 'target_muscle' => 'chest', 'equipment' => 'bodyweight', 'difficulty' => 'beginner'],
-            ['id' => 1009, 'name' => 'Overhead Press', 'target_muscle' => 'shoulders', 'equipment' => 'barbell', 'difficulty' => 'intermediate'],
-            ['id' => 1010, 'name' => 'Lateral Raise', 'target_muscle' => 'shoulders', 'equipment' => 'dumbbell', 'difficulty' => 'beginner'],
-            ['id' => 1011, 'name' => 'Pull Ups', 'target_muscle' => 'back', 'equipment' => 'bar', 'difficulty' => 'advanced'],
-            ['id' => 1012, 'name' => 'Lat Pulldown', 'target_muscle' => 'back', 'equipment' => 'machine', 'difficulty' => 'beginner'],
-            ['id' => 1013, 'name' => 'Plank', 'target_muscle' => 'core', 'equipment' => 'bodyweight', 'difficulty' => 'beginner'],
-            ['id' => 1014, 'name' => 'Crunches', 'target_muscle' => 'core', 'equipment' => 'bodyweight', 'difficulty' => 'beginner'],
-            ['id' => 1015, 'name' => 'Running (Treadmill)', 'target_muscle' => 'cardio', 'equipment' => 'treadmill', 'difficulty' => 'beginner'],
-            ['id' => 1016, 'name' => 'Jump Rope', 'target_muscle' => 'cardio', 'equipment' => 'rope', 'difficulty' => 'intermediate'],
+            [
+                'id' => 1001,
+                'name' => 'Barbell Squat',
+                'target_muscle' => 'legs',
+                'equipment' => 'barbell',
+                'difficulty' => 'intermediate',
+                'image' => asset('storage/exercises/barbell.jpg'),
+            ],
+            [
+                'id' => 1002,
+                'name' => 'Goblet Squat',
+                'target_muscle' => 'legs',
+                'equipment' => 'dumbbell',
+                'difficulty' => 'beginner',
+                'image' => asset('storage/exercises/Goblet.jpg'),
+            ],
+            [
+                'id' => 1003,
+                'name' => 'Leg Press',
+                'target_muscle' => 'legs',
+                'equipment' => 'machine',
+                'difficulty' => 'beginner',
+                'image' => asset('storage/exercises/Leg Press.jpg'),
+            ],
+            [
+                'id' => 1004,
+                'name' => 'Walking Lunges',
+                'target_muscle' => 'legs',
+                'equipment' => 'bodyweight',
+                'difficulty' => 'beginner',
+                'image' => asset('storage/exercises/Walking Lunges.jpg'),
+            ],
+            [
+                'id' => 1005,
+                'name' => 'Deadlift',
+                'target_muscle' => 'back',
+                'equipment' => 'barbell',
+                'difficulty' => 'advanced',
+                'image' => asset('storage/exercises/deadlift.jpg'),
+            ],
+            [
+                'id' => 1006,
+                'name' => 'Romanian Deadlift',
+                'target_muscle' => 'hamstrings',
+                'equipment' => 'barbell',
+                'difficulty' => 'intermediate',
+                'image' => asset('storage/exercises/romanian-deadlift.jpg'),
+            ],
+            [
+                'id' => 1007,
+                'name' => 'Bench Press',
+                'target_muscle' => 'chest',
+                'equipment' => 'barbell',
+                'difficulty' => 'intermediate',
+                'image' => asset('storage/exercises/bench-press.jpg'),
+            ],
+            [
+                'id' => 1008,
+                'name' => 'Push Ups',
+                'target_muscle' => 'chest',
+                'equipment' => 'bodyweight',
+                'difficulty' => 'beginner',
+                'image' => asset('storage/exercises/push-ups.jpg'),
+            ],
+            [
+                'id' => 1009,
+                'name' => 'Overhead Press',
+                'target_muscle' => 'shoulders',
+                'equipment' => 'barbell',
+                'difficulty' => 'intermediate',
+                'image' => asset('storage/exercises/overhead-press.jpg'),
+            ],
+            [
+                'id' => 1010,
+                'name' => 'Lateral Raise',
+                'target_muscle' => 'shoulders',
+                'equipment' => 'dumbbell',
+                'difficulty' => 'beginner',
+                'image' => asset('storage/exercises/lateral-raise.jpg'),
+            ],
+            [
+                'id' => 1011,
+                'name' => 'Pull Ups',
+                'target_muscle' => 'back',
+                'equipment' => 'bar',
+                'difficulty' => 'advanced',
+                'image' => asset('storage/exercises/pull-ups.jpg'),
+            ],
+            [
+                'id' => 1012,
+                'name' => 'Lat Pulldown',
+                'target_muscle' => 'back',
+                'equipment' => 'machine',
+                'difficulty' => 'beginner',
+                'image' => asset('storage/exercises/lat-pulldown.jpg'),
+            ],
+            [
+                'id' => 1013,
+                'name' => 'Plank',
+                'target_muscle' => 'core',
+                'equipment' => 'bodyweight',
+                'difficulty' => 'beginner',
+                'image' => asset('storage/exercises/plank.jpg'),
+            ],
+            [
+                'id' => 1014,
+                'name' => 'Crunches',
+                'target_muscle' => 'core',
+                'equipment' => 'bodyweight',
+                'difficulty' => 'beginner',
+                'image' => asset('storage/exercises/crunches.jpg'),
+            ],
+            [
+                'id' => 1015,
+                'name' => 'Running (Treadmill)',
+                'target_muscle' => 'cardio',
+                'equipment' => 'treadmill',
+                'difficulty' => 'beginner',
+                'image' => asset('storage/exercises/running-treadmill.jpg'),
+            ],
+            [
+                'id' => 1016,
+                'name' => 'Jump Rope',
+                'target_muscle' => 'cardio',
+                'equipment' => 'rope',
+                'difficulty' => 'intermediate',
+                'image' => asset('storage/exercises/jump-rope.jpg'),
+            ],
         ];
     }
 
@@ -68,16 +180,16 @@ class HealthConditionController extends Controller
     private function aliases(): array
     {
         return [
-            'squat' => ['squat','squats','barbell squat','back squat','goblet squat'],
-            'lunge' => ['lunge','lunges','walking lunge'],
-            'leg press' => ['leg press','legpress'],
-            'deadlift' => ['deadlift','dead lift','romanian deadlift'],
-            'bench' => ['bench','bench press'],
-            'overhead press' => ['overhead press','over head press','shoulder press','military press'],
-            'pull up' => ['pull up','pull-up','pullups','chin up'],
-            'crunch' => ['crunch','crunches','sit up'],
-            'run' => ['run','running','treadmill','jog'],
-            'jump' => ['jump','jump rope','skipping','plyo'],
+            'squat' => ['squat', 'squats', 'barbell squat', 'back squat', 'goblet squat'],
+            'lunge' => ['lunge', 'lunges', 'walking lunge'],
+            'leg press' => ['leg press', 'legpress'],
+            'deadlift' => ['deadlift', 'dead lift', 'romanian deadlift'],
+            'bench' => ['bench', 'bench press'],
+            'overhead press' => ['overhead press', 'over head press', 'shoulder press', 'military press'],
+            'pull up' => ['pull up', 'pull-up', 'pullups', 'chin up'],
+            'crunch' => ['crunch', 'crunches', 'sit up'],
+            'run' => ['run', 'running', 'treadmill', 'jog'],
+            'jump' => ['jump', 'jump rope', 'skipping', 'plyo'],
         ];
     }
 
@@ -139,6 +251,7 @@ class HealthConditionController extends Controller
 
         $rulesArr = $rules->map(fn($r) => (array) $r)->toArray();
         $rulesSource = 'db';
+
         if (count($rulesArr) === 0) {
             $rulesArr = $this->defaultRules();
             $rulesSource = 'fallback';
@@ -155,19 +268,34 @@ class HealthConditionController extends Controller
 
         foreach ($rulesArr as $r) {
             $ck = mb_strtolower(trim($r['condition_keyword'] ?? ''));
-            if ($ck === '') continue;
+            if ($ck === '') {
+                continue;
+            }
 
             // match condition keyword against provided conditions
             $matched = false;
             foreach ($conditionNames as $cn) {
                 $mt = $r['match_type'] ?? 'partial';
-                if ($mt === 'exact' && $cn === $ck) { $matched = true; break; }
-                if ($mt === 'partial' && str_contains($cn, $ck)) { $matched = true; break; }
+
+                if ($mt === 'exact' && $cn === $ck) {
+                    $matched = true;
+                    break;
+                }
+
+                if ($mt === 'partial' && str_contains($cn, $ck)) {
+                    $matched = true;
+                    break;
+                }
             }
-            if (!$matched) continue;
+
+            if (!$matched) {
+                continue;
+            }
 
             $bk = mb_strtolower(trim($r['blocked_keyword'] ?? ''));
-            if ($bk === '') continue;
+            if ($bk === '') {
+                continue;
+            }
 
             $severity = $r['severity_level'] ?? 'strict';
 
@@ -186,7 +314,9 @@ class HealthConditionController extends Controller
 
                 foreach ($searchTerms as $term) {
                     $term = mb_strtolower(trim($term));
-                    if ($term === '') continue;
+                    if ($term === '') {
+                        continue;
+                    }
 
                     if (str_contains($hay, $term)) {
                         $found[$e['id']] = $e; // prevent duplicates
@@ -199,6 +329,7 @@ class HealthConditionController extends Controller
                 $item = [
                     'exercise_id' => $e['id'],
                     'name' => $e['name'],
+                    'image' => $e['image'] ?? null,
                     'reason' => $r['reason'] ?? null,
                     'severity_level' => $severity,
                     'matched_condition' => $r['condition_keyword'] ?? null,
@@ -223,7 +354,7 @@ class HealthConditionController extends Controller
             'warnings' => array_values($warnings),
             'data_source' => [
                 'rules' => $rulesSource,
-                'exercises' => $exerciseSource, // always fallback now
+                'exercises' => $exerciseSource,
             ],
         ]);
     }

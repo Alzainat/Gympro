@@ -20,6 +20,7 @@ class TrainerDirectoryController extends Controller
 
         $trainers->getCollection()->transform(function (Profile $p) {
             return [
+                'id' => $p->id,
                 'trainer_id' => $p->id,
                 'full_name' => $p->full_name,
                 'avatar_url' => $p->avatar_url,
@@ -45,10 +46,13 @@ class TrainerDirectoryController extends Controller
             ->first();
 
         if (!$trainer) {
-            return response()->json(['message' => 'Trainer not found'], 404);
+            return response()->json([
+                'message' => 'Trainer not found'
+            ], 404);
         }
 
         return response()->json([
+            'id' => $trainer->id,
             'trainer_id' => $trainer->id,
             'full_name' => $trainer->full_name,
             'avatar_url' => $trainer->avatar_url,
@@ -70,16 +74,19 @@ class TrainerDirectoryController extends Controller
             ->where('trainer_id', $trainerId)
             ->where('is_active', 1)
             // ->where('session_date', '>=', now())
-            ->withCount(['bookings as booked_count' => function ($q) {
-                $q->where('status', 'booked');
-            }])
+            ->withCount([
+                'bookings as booked_count' => function ($q) {
+                    $q->where('status', 'booked');
+                }
+            ])
             ->orderBy('session_date')
             ->get()
             ->filter(fn ($s) => $s->booked_count < $s->max_participants)
             ->values();
 
-        // رجّع نفس شكل unwrap عندك (data)
-        return response()->json(['data' => $sessions]);
+        return response()->json([
+            'data' => $sessions
+        ]);
     }
 
     public function schedule(Request $request, $trainerId)
