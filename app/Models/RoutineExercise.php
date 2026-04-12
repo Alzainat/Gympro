@@ -39,4 +39,9 @@ class RoutineExercise extends Model
     {
         return $this->belongsTo(Exercise::class, 'exercise_id');
     }
+    
+    public function memberLogs()
+    {
+    return $this->hasMany(MemberExerciseLog::class, 'routine_exercise_id');
+    }
 }

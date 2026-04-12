@@ -25,22 +25,28 @@ class PaymentController extends Controller
         ]);
 
         $goalPlans = config('plans.' . $data['goal']);
+
         if (!$goalPlans || !is_array($goalPlans)) {
-            return response()->json(['message' => 'Invalid goal configuration.'], 422);
+            return response()->json([
+                'message' => 'Invalid goal configuration.',
+            ], 422);
         }
 
         $result = [];
+
         foreach ($goalPlans as $tier => $p) {
             $result[$tier] = [
-                'plan_key'  => $tier,                 // bronze/silver/gold
-                'goal'      => $data['goal'],         // cutting/bulking
-                'name'      => ucfirst($tier),
-                'price'     => $p['price'] ?? 0,
-                'currency'  => 'USD',
+                'plan_key' => $tier,
+                'goal' => $data['goal'],
+                'name' => ucfirst($tier),
+                'price' => $p['price'] ?? 0,
+                'currency' => 'USD',
             ];
         }
 
-        return response()->json(['plans' => $result]);
+        return response()->json([
+            'plans' => $result,
+        ]);
     }
 
     /**
@@ -50,123 +56,161 @@ class PaymentController extends Controller
     public function subscribe(Request $request)
     {
         $data = $request->validate([
-            'goal'           => 'required|in:cutting,bulking',
-            'plan_key'       => 'required|in:bronze,silver,gold',
+            'goal' => 'required|in:cutting,bulking',
+            'plan_key' => 'required|in:bronze,silver,gold',
             'payment_method' => 'required|in:cash,credit_card,debit_card,bank_transfer,digital_wallet',
         ]);
 
-        $profile   = $request->user()->profile;
+        $profile = $request->user()->profile;
+
+        if (!$profile) {
+            return response()->json([
+                'message' => 'Profile not found.',
+            ], 404);
+        }
+
         $profileId = $profile->id;
 
         // ✅ جلب الخطة من config/plans.php حسب الهدف + الباقة
         $plan = config('plans.' . $data['goal'] . '.' . $data['plan_key']);
-        if (!$plan) {
-            return response()->json(['message' => 'Invalid plan configuration.'], 422);
+
+        if (!$plan || !is_array($plan)) {
+            return response()->json([
+                'message' => 'Selected plan is missing in configuration. Payment aborted.',
+            ], 422);
         }
 
-        $days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
         return DB::transaction(function () use ($data, $profile, $profileId, $plan, $days) {
+            $startDate = now()->toDateString();
+            $endDate = now()->addMonth()->toDateString();
 
-            // ===== 1) ✅ سجل الدفع =====
-            $payment = Payment::create([
-                'user_id'        => $profileId, // FK -> profiles.id (اسمها user_id لكنها profile فعلياً)
-                'amount'         => $plan['price'],
-                'payment_type'   => 'membership',
-                'payment_method' => $data['payment_method'],
-                'status'         => 'completed',
-                'payment_date'   => now(),
-                'notes'          => 'Subscription: ' . $data['goal'] . '.' . $data['plan_key'],
-                'processed_by'   => null,
-            ]);
-
-            // ===== 2) ✅ تحديث tier + goal (إذا عندك حقل للهدف) =====
-            if ($profile->memberProfile) {
-                // لو عندك عمود goal بالـ member_profiles ضيفه، إذا ما عندك احذف سطر goal
-                $profile->memberProfile->update([
-                    'membership_tier' => $data['plan_key'],
-                    // 'goal' => $data['goal'], // فعّلها إذا عندك هذا العمود
-                ]);
-            }
-
-            // ===== 3) ✅ أرشف/عطّل القديم =====
-            MemberRoutine::where('member_id', $profileId)->update(['status' => 'archived']);
-            MemberMeal::where('member_id', $profileId)->update(['is_active' => 0]);
-
-            // ===== 4) ✅ تحقق من الروتينات المطلوبة بالخطة =====
+            // ===== 1) ✅ تحقق من الروتينات المطلوبة بالخطة قبل أي عملية دفع =====
             $routineIds = Arr::wrap($plan['routines'] ?? []);
+
             if (count($routineIds) === 0) {
-                return response()->json(['message' => 'Plan has no routines configured.'], 422);
+                return response()->json([
+                    'message' => 'Plan has no routines configured. Payment aborted.',
+                ], 422);
             }
 
             $foundRoutineIds = WorkoutRoutine::whereIn('id', $routineIds)->pluck('id')->all();
             $missingRoutines = array_values(array_diff($routineIds, $foundRoutineIds));
+
             if (!empty($missingRoutines)) {
                 return response()->json([
-                    'message' => 'Plan routines missing in DB.',
+                    'message' => 'Plan routines missing in DB. Payment aborted.',
                     'missing_routine_ids' => $missingRoutines,
                 ], 422);
             }
 
-            // ===== 5) ✅ تحقق من الوجبات المطلوبة بالخطة =====
+            // ===== 2) ✅ تحقق من الوجبات المطلوبة بالخطة قبل أي عملية دفع =====
             $planMeals = $plan['meals'] ?? [];
+
             if (count($planMeals) === 0) {
-                return response()->json(['message' => 'Plan has no meals configured.'], 422);
+                return response()->json([
+                    'message' => 'Plan has no meals configured. Payment aborted.',
+                ], 422);
             }
 
-            $mealIds = array_values(array_unique(array_map(fn ($m) => $m['meal_id'], $planMeals)));
+            $mealIds = array_values(array_unique(array_map(
+                fn ($m) => $m['meal_id'] ?? null,
+                $planMeals
+            )));
+
+            $mealIds = array_values(array_filter($mealIds));
+
+            if (count($mealIds) === 0) {
+                return response()->json([
+                    'message' => 'Plan meals configuration is invalid. Payment aborted.',
+                ], 422);
+            }
 
             $foundMealIds = Meal::whereIn('id', $mealIds)->pluck('id')->all();
             $missingMeals = array_values(array_diff($mealIds, $foundMealIds));
+
             if (!empty($missingMeals)) {
                 return response()->json([
-                    'message' => 'Plan meals missing in DB.',
+                    'message' => 'Plan meals missing in DB. Payment aborted.',
                     'missing_meal_ids' => $missingMeals,
                 ], 422);
             }
 
-            // ===== 6) ✅ اسند الروتينات للعضو (Snapshot) =====
-            foreach ($routineIds as $rid) {
-                MemberRoutine::create([
-                    'member_id'   => $profileId,
-                    'routine_id'  => $rid,
-                    'assigned_by' => null,
-                    'start_date'  => now()->toDateString(),
-                    'status'      => 'active',
+            // ===== 3) ✅ حدّث حالة اشتراك العضو =====
+            if ($profile->memberProfile) {
+                $profile->memberProfile->update([
+                    'membership_tier' => $data['plan_key'],
+                    'membership_expires_at' => $endDate,
+                    // 'goal' => $data['goal'], // فعّلها إذا عندك العمود
                 ]);
             }
 
-            // ===== 7) ✅ اسند الوجبات للعضو (Snapshot) + day_of_week =====
+            // ===== 4) ✅ أرشف/عطّل القديم =====
+            MemberRoutine::where('member_id', $profileId)->update([
+                'status' => 'archived',
+            ]);
+
+            MemberMeal::where('member_id', $profileId)->update([
+                'is_active' => 0,
+            ]);
+
+            // ===== 5) ✅ اسند الروتينات للعضو =====
+            foreach ($routineIds as $rid) {
+                MemberRoutine::create([
+                    'member_id' => $profileId,
+                    'routine_id' => $rid,
+                    'assigned_by' => null,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'status' => 'active',
+                ]);
+            }
+
+            // ===== 6) ✅ اسند الوجبات للعضو =====
             $mealsById = Meal::whereIn('id', $mealIds)->get()->keyBy('id');
 
-            // توزيع الأيام: Monday..Sunday وبعدين نرجع نلف لو في أكثر من 7
             $dayIndex = 0;
 
             foreach ($planMeals as $row) {
                 $meal = $mealsById[$row['meal_id']] ?? null;
-
                 $assignedDay = $row['day_of_week'] ?? $days[$dayIndex % count($days)];
                 $dayIndex++;
 
                 MemberMeal::create([
-                    'member_id'   => $profileId,
-                    'meal_id'     => $row['meal_id'],
+                    'member_id' => $profileId,
+                    'meal_id' => $row['meal_id'],
                     'assigned_by' => $meal?->trainer_id,
-                    'meal_time'   => $row['meal_time'] ?? null,
+                    'meal_time' => $row['meal_time'] ?? null,
                     'day_of_week' => $assignedDay,
-                    'start_date'  => now()->toDateString(),
-                    'is_active'   => 1,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'is_active' => 1,
                 ]);
             }
 
+            // ===== 7) ✅ سجل الدفع آخر شيء فقط بعد نجاح كل شيء =====
+            $payment = Payment::create([
+                'user_id' => $profileId, // FK -> profiles.id
+                'amount' => $plan['price'] ?? 0,
+                'payment_type' => 'membership',
+                'payment_method' => $data['payment_method'],
+                'status' => 'completed',
+                'payment_date' => now(),
+                'notes' => 'Subscription: ' . $data['goal'] . '.' . $data['plan_key'],
+                'processed_by' => null,
+            ]);
+
             return response()->json([
-                'message'  => 'Subscribed successfully (goal-based)',
-                'goal'     => $data['goal'],
+                'message' => 'Subscribed successfully (goal-based)',
+                'goal' => $data['goal'],
                 'plan_key' => $data['plan_key'],
-                'payment'  => $payment,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'payment' => $payment,
                 'assigned' => [
                     'workouts_count' => count($routineIds),
-                    'meals_count'    => count($planMeals),
+                    'meals_count' => count($planMeals),
                 ],
             ], 201);
         });
@@ -175,6 +219,12 @@ class PaymentController extends Controller
     public function myPayments(Request $request)
     {
         $profile = $request->user()->profile;
+
+        if (!$profile) {
+            return response()->json([
+                'message' => 'Profile not found.',
+            ], 404);
+        }
 
         $items = Payment::query()
             ->where('user_id', $profile->id)
@@ -185,7 +235,7 @@ class PaymentController extends Controller
     }
 
     /**
-     * GET /member/plan-details?goal=cutting|bulking (اختياري)
+     * GET /member/plan-details?goal=cutting|bulking
      * - إذا بعت goal: بيرجع تفاصيل tiers لهذا الهدف
      * - إذا ما بعت: بيرجع تفاصيل كل الأهداف
      */
@@ -203,19 +253,18 @@ class PaymentController extends Controller
 
         $result = [];
 
-        // إذا جبت كل الأهداف: $plans = ['cutting'=>[tiers], 'bulking'=>[tiers]]
-        // إذا جبت هدف واحد: $plans = [tiers]
         $isMultiGoal = $goal ? false : true;
 
         if ($isMultiGoal) {
             foreach ($plans as $g => $tiers) {
                 $result[$g] = $this->buildGoalPlanDetails($tiers);
             }
+
             return response()->json($result);
         }
 
-        // هدف واحد فقط
         $result = $this->buildGoalPlanDetails($plans);
+
         return response()->json($result);
     }
 
@@ -228,14 +277,18 @@ class PaymentController extends Controller
 
         foreach ($tiers as $key => $p) {
             $routineIds = $p['routines'] ?? [];
-            $mealRows   = $p['meals'] ?? [];
+            $mealRows = $p['meals'] ?? [];
 
             $routines = WorkoutRoutine::whereIn('id', $routineIds)
                 ->get(['id', 'name'])
-                ->map(fn ($r) => ['id' => $r->id, 'name' => $r->name])
+                ->map(fn ($r) => [
+                    'id' => $r->id,
+                    'name' => $r->name,
+                ])
                 ->values();
 
             $mealIds = collect($mealRows)->pluck('meal_id')->unique()->values()->all();
+
             $mealsById = Meal::whereIn('id', $mealIds)
                 ->get(['id', 'name'])
                 ->keyBy('id');
@@ -244,17 +297,17 @@ class PaymentController extends Controller
                 $m = $mealsById[$row['meal_id']] ?? null;
 
                 return [
-                    'meal_id'     => $row['meal_id'],
-                    'name'        => $m?->name,
-                    'meal_time'   => $row['meal_time'] ?? null,
+                    'meal_id' => $row['meal_id'],
+                    'name' => $m?->name,
+                    'meal_time' => $row['meal_time'] ?? null,
                     'day_of_week' => $row['day_of_week'] ?? null,
                 ];
             })->values();
 
             $out[$key] = [
-                'price'    => $p['price'] ?? 0,
+                'price' => $p['price'] ?? 0,
                 'routines' => $routines,
-                'meals'    => $meals,
+                'meals' => $meals,
             ];
         }
 

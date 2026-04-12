@@ -16,6 +16,7 @@ class MemberMeal extends Model
         'meal_id',
         'assigned_by',
         'meal_time',
+        'grams',
         'day_of_week',
         'start_date',
         'is_active',

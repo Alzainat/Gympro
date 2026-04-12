@@ -16,62 +16,81 @@ class EditWorkoutRoutine extends EditRecord
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $data['creator_id'] = auth()->user()->profile->id;
+
         return $data;
     }
 
     /**
-     * تعبئة التمارين حسب اليوم عند فتح صفحة التعديل
+     * تعبئة التمارين عند فتح صفحة التعديل
      */
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        $days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+        $data['selected_day'] = 'Sunday';
+        $data['selected_muscle'] = 'chest';
 
-        foreach ($days as $day) {
-            $data["routineExercises_{$day}"] = $this->record->routineExercises()
-                ->where('day_of_week', $day)
-                ->orderBy('order_index')
-                ->get()
-                ->map(fn ($re) => [
-                    'exercise_id'  => $re->exercise_id,
-                    'sets'         => $re->sets,
-                    'reps'         => $re->reps,
-                    'rest_seconds' => $re->rest_seconds,
-                    'order_index'  => $re->order_index,
-                    'notes'        => $re->notes,
-                ])
-                ->toArray();
-        }
+        $data['routineExercises'] = $this->record->routineExercises()
+            ->with('exercise')
+            ->orderByRaw("
+                CASE day_of_week
+                    WHEN 'Sunday' THEN 1
+                    WHEN 'Monday' THEN 2
+                    WHEN 'Tuesday' THEN 3
+                    WHEN 'Wednesday' THEN 4
+                    WHEN 'Thursday' THEN 5
+                    WHEN 'Friday' THEN 6
+                    WHEN 'Saturday' THEN 7
+                    ELSE 8
+                END
+            ")
+            ->orderBy('order_index')
+            ->get()
+            ->map(function ($re) {
+                return [
+                    'exercise_id'   => $re->exercise_id,
+                    'day_of_week'   => $re->day_of_week,
+                    'muscle_group'  => $re->exercise?->target_muscle,
+                    'day_label'     => $re->day_of_week,
+                    'muscle_label'  => $re->exercise?->target_muscle,
+                    'sets'          => $re->sets,
+                    'reps'          => $re->reps,
+                    'rest_seconds'  => $re->rest_seconds,
+                    'order_index'   => $re->order_index,
+                    'notes'         => $re->notes,
+                ];
+            })
+            ->toArray();
 
         return $data;
     }
 
     /**
-     * بعد الحفظ: إعادة بناء جدول routine_exercises حسب الأيام
+     * بعد الحفظ: إعادة بناء جدول routine_exercises
      */
     protected function afterSave(): void
     {
-        $this->syncExercisesByDay();
+        $this->syncExercises();
     }
 
-    private function syncExercisesByDay(): void
+    private function syncExercises(): void
     {
         $state = $this->form->getState();
-        $days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
         $this->record->routineExercises()->delete();
 
-        foreach ($days as $day) {
-            foreach (($state["routineExercises_{$day}"] ?? []) as $row) {
-                $this->record->routineExercises()->create([
-                    'exercise_id'   => $row['exercise_id'],
-                    'day_of_week'   => $day,
-                    'sets'          => $row['sets'] ?? 3,
-                    'reps'          => $row['reps'] ?? 12,
-                    'rest_seconds'  => $row['rest_seconds'] ?? 60,
-                    'order_index'   => $row['order_index'] ?? null,
-                    'notes'         => $row['notes'] ?? null,
-                ]);
+        foreach (($state['routineExercises'] ?? []) as $index => $row) {
+            if (empty($row['exercise_id'])) {
+                continue;
             }
+
+            $this->record->routineExercises()->create([
+                'exercise_id'   => $row['exercise_id'],
+                'day_of_week'   => $row['day_of_week'] ?? 'Sunday',
+                'sets'          => $row['sets'] ?? 3,
+                'reps'          => $row['reps'] ?? 12,
+                'rest_seconds'  => $row['rest_seconds'] ?? 60,
+                'order_index'   => $row['order_index'] ?? ($index + 1),
+                'notes'         => $row['notes'] ?? null,
+            ]);
         }
     }
 

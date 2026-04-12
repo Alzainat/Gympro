@@ -9,7 +9,6 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Support\Colors\Color;
 
 class PaymentResource extends Resource
 {
@@ -24,9 +23,6 @@ class PaymentResource extends Resource
         return auth()->user()?->profile?->role === 'admin';
     }
 
-    /* =========================
-     | Form (Create / Edit)
-     ========================= */
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -41,7 +37,7 @@ class PaymentResource extends Resource
 
                     Forms\Components\TextInput::make('amount')
                         ->numeric()
-                        ->prefix('JOD')
+                        ->prefix('USD $')
                         ->required(),
 
                     Forms\Components\Select::make('payment_type')
@@ -101,9 +97,6 @@ class PaymentResource extends Resource
         ]);
     }
 
-    /* =========================
-     | Table (List)
-     ========================= */
     public static function table(Table $table): Table
     {
         return $table
@@ -124,7 +117,7 @@ class PaymentResource extends Resource
                     ->formatStateUsing(fn ($state) => ucfirst(str_replace('_', ' ', $state))),
 
                 Tables\Columns\TextColumn::make('amount')
-                    ->money('JOD')
+                    ->money('USD')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('payment_method')
@@ -162,9 +155,28 @@ class PaymentResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->after(function ($record) {
+                        \App\Helpers\AdminLogger::log(
+                            action: 'delete_payment',
+                            targetType: 'Payment',
+                            targetId: $record->id,
+                            oldValues: $record->toArray(),
+                        );
+                    }),
             ])
             ->bulkActions([
-                Tables\Actions\DeleteBulkAction::make(),
+                Tables\Actions\DeleteBulkAction::make()
+                    ->after(function ($records) {
+                        foreach ($records as $record) {
+                            \App\Helpers\AdminLogger::log(
+                                action: 'delete_payment',
+                                targetType: 'Payment',
+                                targetId: $record->id,
+                                oldValues: $record->toArray(),
+                            );
+                        }
+                    }),
             ]);
     }
 

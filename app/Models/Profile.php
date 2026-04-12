@@ -64,6 +64,12 @@ class Profile extends Model
         return $this->hasMany(HealthCondition::class, 'user_id');
     }
 
+    // Progress Photos
+    public function progressPhotos()
+    {
+        return $this->hasMany(MemberProgressPhoto::class, 'member_id');
+    }
+
     // Workouts & nutrition
     public function createdRoutines()
     {
@@ -106,8 +112,6 @@ class Profile extends Model
         return $this->hasMany(SessionBooking::class, 'member_id');
     }
 
-
-
     // Payments
     public function payments()
     {
@@ -129,6 +133,4 @@ class Profile extends Model
     {
         return $this->hasMany(Message::class, 'receiver_id');
     }
-
-    
 }

@@ -44,7 +44,7 @@ class MonthlyIncome extends ChartWidget
         return [
             'datasets' => [
                 [
-                    'label' => 'Income (JOD)',
+                    'label' => 'Income (USD)',
                     'data' => $data,
                     'fill' => true,
                     'tension' => 0.4,

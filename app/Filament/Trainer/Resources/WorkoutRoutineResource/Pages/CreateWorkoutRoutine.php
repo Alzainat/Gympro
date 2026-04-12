@@ -15,36 +15,38 @@ class CreateWorkoutRoutine extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['creator_id'] = auth()->user()->profile->id;
+
         return $data;
     }
 
     /**
-     * بعد الإنشاء: نحفظ تمارين الأيام
+     * بعد الإنشاء: نحفظ التمارين
      */
     protected function afterCreate(): void
     {
-        $this->syncExercisesByDay();
+        $this->syncExercises();
     }
 
-    private function syncExercisesByDay(): void
+    private function syncExercises(): void
     {
         $state = $this->form->getState();
-        $days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
         $this->record->routineExercises()->delete();
 
-        foreach ($days as $day) {
-            foreach (($state["routineExercises_{$day}"] ?? []) as $row) {
-                $this->record->routineExercises()->create([
-                    'exercise_id'   => $row['exercise_id'],
-                    'day_of_week'   => $day,
-                    'sets'          => $row['sets'] ?? 3,
-                    'reps'          => $row['reps'] ?? 12,
-                    'rest_seconds'  => $row['rest_seconds'] ?? 60,
-                    'order_index'   => $row['order_index'] ?? null,
-                    'notes'         => $row['notes'] ?? null,
-                ]);
+        foreach (($state['routineExercises'] ?? []) as $index => $row) {
+            if (empty($row['exercise_id'])) {
+                continue;
             }
+
+            $this->record->routineExercises()->create([
+                'exercise_id'   => $row['exercise_id'],
+                'day_of_week'   => $row['day_of_week'] ?? 'Sunday',
+                'sets'          => $row['sets'] ?? 3,
+                'reps'          => $row['reps'] ?? 12,
+                'rest_seconds'  => $row['rest_seconds'] ?? 60,
+                'order_index'   => $row['order_index'] ?? ($index + 1),
+                'notes'         => $row['notes'] ?? null,
+            ]);
         }
     }
 

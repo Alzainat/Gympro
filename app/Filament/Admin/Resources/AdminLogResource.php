@@ -21,7 +21,6 @@ class AdminLogResource extends Resource
         return auth()->user()?->profile?->role === 'admin';
     }
 
-    // 🔒 Read only
     public static function canCreate(): bool
     {
         return false;
@@ -69,9 +68,14 @@ class AdminLogResource extends Resource
                 Tables\Filters\SelectFilter::make('action')
                     ->options([
                         'create_user'    => 'Create User',
-                        'update_user' => 'Update User',
-                        'delete_user' => 'Delete User',
+                        'update_user'    => 'Update User',
+                        'delete_user'    => 'Delete User',
                         'create_payment' => 'Create Payment',
+                        'update_payment' => 'Update Payment',
+                        'delete_payment' => 'Delete Payment',
+                        'create_meal'    => 'Create Meal',
+                        'update_meal'    => 'Update Meal',
+                        'delete_meal'    => 'Delete Meal',
                     ]),
 
                 Tables\Filters\SelectFilter::make('target_type')
@@ -80,6 +84,7 @@ class AdminLogResource extends Resource
                         'Trainer' => 'Trainer',
                         'Admin'   => 'Admin',
                         'Payment' => 'Payment',
+                        'Meal'    => 'Meal',
                     ]),
             ])
             ->defaultSort('created_at', 'desc');

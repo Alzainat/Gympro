@@ -16,11 +16,11 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Tabs;
-use Filament\Forms\Components\Tabs\Tab;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\ToggleButtons;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Get;
 
 class WorkoutRoutineResource extends Resource
 {
@@ -38,14 +38,96 @@ class WorkoutRoutineResource extends Resource
 
     public static function form(Forms\Form $form): Forms\Form
     {
-        $exerciseRepeater = function (string $day) {
-            return Repeater::make("routineExercises_{$day}")
-                ->label("Exercises - {$day}")
+        return $form->schema([
+            TextInput::make('name')
+                ->label('Routine Name')
+                ->required()
+                ->maxLength(255),
+
+            Textarea::make('description')
+                ->rows(3),
+
+            Select::make('difficulty_level')
+                ->options([
+                    'beginner' => 'Beginner',
+                    'intermediate' => 'Intermediate',
+                    'advanced' => 'Advanced',
+                ])
+                ->required(),
+
+            ToggleButtons::make('selected_day')
+                ->label('Choose Day')
+                ->options([
+                    'Saturday'  => 'Saturday',
+                    'Friday'    => 'Friday',
+                    'Thursday'  => 'Thursday',
+                    'Wednesday' => 'Wednesday',
+                    'Tuesday'   => 'Tuesday',
+                    'Monday'    => 'Monday',
+                    'Sunday'    => 'Sunday',
+                ])
+                ->inline()
+                ->live()
+                ->default('Sunday')
+                ->dehydrated(false)
+                ->grouped()
+                ->columnSpanFull()
+                ->required(),
+
+            ToggleButtons::make('selected_muscle')
+                ->label('Choose Muscle Group')
+                ->options([
+                    'shoulders' => 'Shoulders',
+                    'back'      => 'Back',
+                    'chest'     => 'Chest',
+                    'legs'      => 'Legs',
+                    'arms'      => 'Arms',
+                    'core'      => 'Core',
+                ])
+                ->inline()
+                ->live()
+                ->default('chest')
+                ->dehydrated(false)
+                ->grouped()
+                ->columnSpanFull()
+                ->required(),
+
+            Repeater::make('routineExercises')
+                ->label('Exercises')
+                ->columnSpanFull()
+                ->defaultItems(0)
                 ->schema([
+                    Hidden::make('day_of_week')
+                        ->default(fn (Get $get) => $get('../../selected_day')),
+
+                    Hidden::make('muscle_group')
+                        ->default(fn (Get $get) => $get('../../selected_muscle')),
+
+                    TextInput::make('day_label')
+                        ->label('Day')
+                        ->default(fn (Get $get) => $get('../../selected_day'))
+                        ->disabled()
+                        ->dehydrated(false),
+
+                    TextInput::make('muscle_label')
+                        ->label('Muscle Group')
+                        ->default(fn (Get $get) => $get('../../selected_muscle'))
+                        ->disabled()
+                        ->dehydrated(false),
+
                     Select::make('exercise_id')
                         ->label('Exercise')
-                        ->options(fn () => Exercise::query()->orderBy('name')->pluck('name', 'id')->toArray())
+                        ->options(function (Get $get) {
+                            $selectedMuscle = $get('../../selected_muscle');
+
+                            return Exercise::query()
+                                ->when($selectedMuscle, fn ($q) => $q->where('target_muscle', $selectedMuscle))
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->toArray();
+                        })
                         ->searchable()
+                        ->preload()
                         ->required()
                         ->suffixAction(
                             \Filament\Forms\Components\Actions\Action::make('addExercise')
@@ -61,7 +143,9 @@ class WorkoutRoutineResource extends Resource
                                     Textarea::make('description'),
 
                                     TextInput::make('target_muscle')
-                                        ->label('Target Muscle'),
+                                        ->label('Target Muscle')
+                                        ->default(fn (Get $get) => $get('../../../../selected_muscle'))
+                                        ->required(),
 
                                     TextInput::make('equipment')
                                         ->label('Equipment'),
@@ -72,8 +156,6 @@ class WorkoutRoutineResource extends Resource
                                             'intermediate' => 'Intermediate',
                                             'advanced' => 'Advanced',
                                         ]),
-
-                                   
 
                                     FileUpload::make('image_url')
                                         ->label('Exercise Image')
@@ -103,43 +185,21 @@ class WorkoutRoutineResource extends Resource
                     TextInput::make('rest_seconds')
                         ->numeric()
                         ->default(60),
+
+                    
+
+                    Textarea::make('notes')
+                        ->rows(2)
+                        ->columnSpanFull(),
                 ])
-                ->collapsed()
-                ->columnSpanFull();
-        };
+                ->collapsible()
+                ->itemLabel(function (array $state): ?string {
+                    $day = $state['day_of_week'] ?? null;
+                    $muscle = $state['muscle_group'] ?? null;
 
-        return $form->schema([
-            TextInput::make('name')
-                ->label('Routine Name')
-                ->required()
-                ->maxLength(255),
-
-            Textarea::make('description')
-                ->rows(3),
-
-            Select::make('difficulty_level')
-                ->options([
-                    'beginner' => 'Beginner',
-                    'intermediate' => 'Intermediate',
-                    'advanced' => 'Advanced',
-                ])
-                ->required(),
-
-            Toggle::make('is_public')
-                ->label('Public Routine')
-                ->default(true),
-
-            Tabs::make('Exercises By Day')
-                ->columnSpanFull()
-                ->tabs([
-                    Tab::make('Monday')->schema([$exerciseRepeater('Monday')]),
-                    Tab::make('Tuesday')->schema([$exerciseRepeater('Tuesday')]),
-                    Tab::make('Wednesday')->schema([$exerciseRepeater('Wednesday')]),
-                    Tab::make('Thursday')->schema([$exerciseRepeater('Thursday')]),
-                    Tab::make('Friday')->schema([$exerciseRepeater('Friday')]),
-                    Tab::make('Saturday')->schema([$exerciseRepeater('Saturday')]),
-                    Tab::make('Sunday')->schema([$exerciseRepeater('Sunday')]),
-                ]),
+                    return $day && $muscle ? "{$day} - {$muscle}" : 'Exercise';
+                })
+                ->addActionLabel('Add Exercise'),
         ]);
     }
 
@@ -149,7 +209,6 @@ class WorkoutRoutineResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('name')->searchable(),
                 Tables\Columns\TextColumn::make('difficulty_level')->badge(),
-                Tables\Columns\IconColumn::make('is_public')->boolean(),
                 Tables\Columns\TextColumn::make('created_at')->date(),
             ])
             ->actions([

@@ -11,7 +11,14 @@ class HealthCondition extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['user_id','type','name','severity','notes','detected_at'];
+    protected $fillable = [
+        'user_id',
+        'type',
+        'name',
+        'severity',
+        'notes',
+        'detected_at',
+    ];
 
     protected $casts = [
         'detected_at' => 'datetime',

@@ -27,18 +27,18 @@ class UserResource extends Resource
         return $form->schema([
             Forms\Components\TextInput::make('name')
                 ->label('Name')
-                ->required()
-                ->dehydrated(true),
+                ->required(),
 
             Forms\Components\TextInput::make('email')
                 ->email()
                 ->required()
-                ->unique('users', 'email'),
+                ->unique(ignoreRecord: true),
 
             Forms\Components\TextInput::make('password')
                 ->password()
-                ->required()
                 ->minLength(8)
+                ->required(fn (string $operation) => $operation === 'create')
+                ->dehydrated(fn ($state) => filled($state))
                 ->dehydrateStateUsing(fn ($state) => bcrypt($state)),
 
             Forms\Components\Select::make('role')
@@ -46,11 +46,11 @@ class UserResource extends Resource
                 ->options([
                     'admin'   => 'Admin',
                     'trainer' => 'Trainer',
-                    'user'    => 'User',
+                    'member'  => 'Member',
                 ])
                 ->required()
-                ->default('user')
-                ->dehydrated(false), // ⚠️ لأنه مش موجود بجدول users
+                ->default('member')
+                ->dehydrated(false), // لأنه مش موجود بجدول users
         ]);
     }
 
@@ -62,10 +62,9 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('email'),
             ])
 
-            // ✅ ما عاد السطر يفتح edit عند الضغط عليه
+            // منع فتح edit عند الضغط على الصف
             ->recordUrl(null)
 
-            // ✅ Actions مثل الصورة: View | Edit | Delete
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
@@ -75,7 +74,7 @@ class UserResource extends Resource
                     ->modalHeading('Delete user')
                     ->modalDescription('Are you sure you want to delete this user? This action cannot be undone.')
                     ->before(function ($record) {
-                        // ✅ log قبل الحذف
+                        // log قبل الحذف
                         AdminLogger::log(
                             action: 'delete_user',
                             targetType: 'User',
@@ -84,7 +83,7 @@ class UserResource extends Resource
                             newValues: null,
                         );
 
-                        // ✅ لتجنب مشاكل FK / orphan profile
+                        // حذف profile لتجنب FK issues
                         $record->profile()?->delete();
                     })
                     ->successNotificationTitle('User deleted'),

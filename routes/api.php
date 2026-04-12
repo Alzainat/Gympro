@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\MemberTrainerSubscriptionController;
+
 // Auth
 use App\Http\Controllers\Api\Auth\AuthController;
 
@@ -11,9 +12,10 @@ use App\Http\Controllers\Api\Member\ProfileController;
 use App\Http\Controllers\Api\Member\WorkoutController;
 use App\Http\Controllers\Api\Member\DietController;
 use App\Http\Controllers\Api\Member\ChatController;
+use App\Http\Controllers\Api\Member\ProgressPhotoController;
 use App\Http\Controllers\Api\MemberHealthProfileController;
 
-// ✅ NEW: Member extra
+// Member extra
 use App\Http\Controllers\Api\Member\HealthConditionController;
 use App\Http\Controllers\Api\Member\PaymentController;
 use App\Http\Controllers\Api\Member\BookingController;
@@ -22,17 +24,14 @@ use App\Http\Controllers\Api\Member\BookingController;
 use App\Http\Controllers\Api\Trainer\TrainerScheduleController;
 use App\Http\Controllers\Api\Trainer\TrainingSessionController;
 
-// ✅ NEW: Trainer extra
+// Trainer extra
 use App\Http\Controllers\Api\Trainer\TrainerBookingsController;
 
 // Common Controllers
 use App\Http\Controllers\Api\Common\ExerciseController;
-
-// ✅ NEW: trainers listing (common)
 use App\Http\Controllers\Api\Common\TrainerDirectoryController;
-
-// ✅ Notifications (Common)
 use App\Http\Controllers\Api\Common\NotificationsController;
+
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\NewPasswordController;
 
@@ -84,13 +83,12 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     | Common (member only here) - Trainers Directory & Sessions
     |--------------------------------------------------------------------------
-    | المطلوب: صفحة trainers + صفحة booking
     */
     Route::middleware('role:member')->group(function () {
-        Route::get('/trainers', [TrainerDirectoryController::class, 'index']);           // cards للمدربين
-        Route::get('/trainers/{trainerId}', [TrainerDirectoryController::class, 'show']); // تفاصيل
-        Route::get('/trainers/{trainerId}/sessions', [TrainerDirectoryController::class, 'sessions']); // جلسات مدرب
-        Route::get('/trainers/{trainerId}/schedule', [TrainerDirectoryController::class, 'schedule']); // (اختياري) availability
+        Route::get('/trainers', [TrainerDirectoryController::class, 'index']);
+        Route::get('/trainers/{trainerId}', [TrainerDirectoryController::class, 'show']);
+        Route::get('/trainers/{trainerId}/sessions', [TrainerDirectoryController::class, 'sessions']);
+        Route::get('/trainers/{trainerId}/schedule', [TrainerDirectoryController::class, 'schedule']);
 
         Route::post('/member/trainers/{trainer}/subscribe', [MemberTrainerSubscriptionController::class, 'store']);
         Route::delete('/member/trainer-subscription', [MemberTrainerSubscriptionController::class, 'destroy']);
@@ -104,48 +102,51 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:member')->group(function () {
 
         // Profile
+        Route::get('/member/me', [ProfileController::class, 'me']);
 
-
-        // Workouts (جدول التمارين)
+        // Workouts
         Route::get('/member/workouts', [WorkoutController::class, 'index']);
         Route::get('/member/workouts/{id}', [WorkoutController::class, 'show']);
-        Route::post('/member/workouts/{id}/assign', [WorkoutController::class, 'assign']); // (موجود عندك)
+        Route::post('/member/workouts/{id}/assign', [WorkoutController::class, 'assign']);
+        Route::post('/member/workouts/log', [WorkoutController::class, 'saveExerciseLog']);
 
         // Meals / Diet
         Route::get('/member/diet-plans', [DietController::class, 'myPlans']);
-        Route::get('/member/meals', [DietController::class, 'myMeals']); // ✅ NEW: جدول الأكل (member_meals + meals)
+        Route::get('/member/meals', [DietController::class, 'myMeals']);
 
-        // Health conditions + blocked exercises (simple)
+        // Health conditions
+        Route::get('/member/health-conditions', [HealthConditionController::class, 'index']);
         Route::post('/member/health-conditions', [HealthConditionController::class, 'store']);
+        Route::delete('/member/health-conditions/{id}', [HealthConditionController::class, 'destroy']);
         Route::post('/member/health-conditions/check', [HealthConditionController::class, 'check']);
-        // check: ترجع blocked_exercises بناءً على contraindications + exercises
 
-        // Booking (جلسات تدريب)
-        Route::get('/member/bookings', [BookingController::class, 'index']); // حجوزاتي
-        Route::post('/member/bookings/sessions', [BookingController::class, 'bookSession']); // ✅ يحجز session_id
+        // Booking
+        Route::get('/member/bookings', [BookingController::class, 'index']);
+        Route::post('/member/bookings/sessions', [BookingController::class, 'bookSession']);
         Route::post('/member/bookings/sessions/{id}/cancel', [BookingController::class, 'cancelSession']);
 
         // Payments / Plans
-        Route::get('/member/plans', [PaymentController::class, 'plans']); // 3 خطط
+        Route::get('/member/plans', [PaymentController::class, 'plans']);
         Route::post('/member/subscribe', [PaymentController::class, 'subscribe']);
-        // subscribe: يسجل payment + يوزع workouts + meals حسب الخطة
         Route::get('/member/payments', [PaymentController::class, 'myPayments']);
         Route::get('/member/plan-details', [PaymentController::class, 'planDetails']);
 
-        // Chat (member)
+        // Chat
         Route::get('/member/chat/allowed-trainers', [ChatController::class, 'allowedTrainers']);
         Route::get('/member/chat/inbox', [ChatController::class, 'inbox']);
         Route::get('/member/chat/thread/{trainerId}', [ChatController::class, 'thread']);
         Route::post('/member/chat/send', [ChatController::class, 'send']);
         Route::post('/member/chat/{trainerId}/read', [ChatController::class, 'markRead']);
 
+        // Health Profile
+        Route::get('/member/health-profile', [MemberHealthProfileController::class, 'show']);
+        Route::post('/member/health-profile', [MemberHealthProfileController::class, 'upsert']);
 
-        Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/member/health-profile', [MemberHealthProfileController::class, 'show']);
-    Route::post('/member/health-profile', [MemberHealthProfileController::class, 'upsert']);
-});
-
-
+        // Progress Photos
+        Route::get('/member/progress-photos', [ProgressPhotoController::class, 'index']);
+        Route::post('/member/progress-photos', [ProgressPhotoController::class, 'store']);
+        Route::delete('/member/progress-photos/{id}', [ProgressPhotoController::class, 'destroy']);
+        Route::get('/member/progress-photos/comparison', [ProgressPhotoController::class, 'comparison']);
     });
 
     /*
@@ -165,8 +166,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/trainer/sessions', [TrainingSessionController::class, 'store']);
         Route::patch('/trainer/sessions/{id}/toggle', [TrainingSessionController::class, 'toggle']);
 
-        // ✅ NEW: Bookings that came from members
+        // Bookings
         Route::get('/trainer/bookings', [TrainerBookingsController::class, 'index']);
-        // index: يعرض session_bookings + بيانات العضو + الجلسة
     });
 });

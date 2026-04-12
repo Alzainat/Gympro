@@ -10,8 +10,7 @@ use Illuminate\Support\Facades\DB;
 class HealthConditionController extends Controller
 {
     /**
-     * ✅ In-code exercises dataset (always used)
-     * Added image for each exercise.
+     * Default in-code exercises dataset
      */
     private function defaultExercises(): array
     {
@@ -148,34 +147,30 @@ class HealthConditionController extends Controller
     }
 
     /**
-     * ✅ Default contraindication rules if DB table is empty
+     * Default contraindication rules if DB table is empty
      */
     private function defaultRules(): array
     {
         return [
-            // knee
             ['condition_keyword' => 'knee', 'target_type' => 'exercise', 'blocked_keyword' => 'squat', 'match_type' => 'partial', 'severity_level' => 'strict',  'reason' => 'High knee load'],
             ['condition_keyword' => 'knee', 'target_type' => 'exercise', 'blocked_keyword' => 'lunge', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'May increase knee pain'],
             ['condition_keyword' => 'knee', 'target_type' => 'exercise', 'blocked_keyword' => 'leg press', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Knee flexion under load'],
 
-            // shoulder
             ['condition_keyword' => 'shoulder', 'target_type' => 'exercise', 'blocked_keyword' => 'overhead press', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Overhead position stresses shoulder'],
-            ['condition_keyword' => 'shoulder', 'target_type' => 'exercise', 'blocked_keyword' => 'bench',         'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Pressing may irritate shoulder'],
-            ['condition_keyword' => 'shoulder', 'target_type' => 'exercise', 'blocked_keyword' => 'pull up',       'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Hanging/pulling may irritate'],
+            ['condition_keyword' => 'shoulder', 'target_type' => 'exercise', 'blocked_keyword' => 'bench', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Pressing may irritate shoulder'],
+            ['condition_keyword' => 'shoulder', 'target_type' => 'exercise', 'blocked_keyword' => 'pull up', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Hanging/pulling may irritate'],
 
-            // back / disc
-            ['condition_keyword' => 'back',      'target_type' => 'exercise', 'blocked_keyword' => 'deadlift', 'match_type' => 'partial', 'severity_level' => 'strict',  'reason' => 'High spinal load'],
-            ['condition_keyword' => 'disc',      'target_type' => 'exercise', 'blocked_keyword' => 'deadlift', 'match_type' => 'partial', 'severity_level' => 'strict',  'reason' => 'Risk for disc irritation'],
-            ['condition_keyword' => 'back pain', 'target_type' => 'exercise', 'blocked_keyword' => 'crunch',   'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Flexion may aggravate back'],
+            ['condition_keyword' => 'back', 'target_type' => 'exercise', 'blocked_keyword' => 'deadlift', 'match_type' => 'partial', 'severity_level' => 'strict', 'reason' => 'High spinal load'],
+            ['condition_keyword' => 'disc', 'target_type' => 'exercise', 'blocked_keyword' => 'deadlift', 'match_type' => 'partial', 'severity_level' => 'strict', 'reason' => 'Risk for disc irritation'],
+            ['condition_keyword' => 'back pain', 'target_type' => 'exercise', 'blocked_keyword' => 'crunch', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Flexion may aggravate back'],
 
-            // ankle
             ['condition_keyword' => 'ankle', 'target_type' => 'exercise', 'blocked_keyword' => 'jump', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Impact may worsen ankle pain'],
-            ['condition_keyword' => 'ankle', 'target_type' => 'exercise', 'blocked_keyword' => 'run',  'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Impact cardio may irritate'],
+            ['condition_keyword' => 'ankle', 'target_type' => 'exercise', 'blocked_keyword' => 'run', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Impact cardio may irritate'],
         ];
     }
 
     /**
-     * ✅ synonyms for better matching against in-code dataset
+     * aliases for better matching
      */
     private function aliases(): array
     {
@@ -193,6 +188,20 @@ class HealthConditionController extends Controller
         ];
     }
 
+    public function index(Request $request)
+    {
+        $profile = $request->user()->profile;
+
+        $conditions = HealthCondition::query()
+            ->where('user_id', $profile->id)
+            ->latest('detected_at')
+            ->get();
+
+        return response()->json([
+            'data' => $conditions,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -205,7 +214,7 @@ class HealthConditionController extends Controller
         $profile = $request->user()->profile;
 
         $hc = HealthCondition::create([
-            'user_id' => $profile->id, // FK -> profiles.id
+            'user_id' => $profile->id,
             'type' => $request->type,
             'name' => $request->name,
             'severity' => $request->severity ?? 'medium',
@@ -219,6 +228,21 @@ class HealthConditionController extends Controller
         ], 201);
     }
 
+    public function destroy(Request $request, $id)
+    {
+        $profile = $request->user()->profile;
+
+        $condition = HealthCondition::query()
+            ->where('user_id', $profile->id)
+            ->findOrFail($id);
+
+        $condition->delete();
+
+        return response()->json([
+            'message' => 'Health condition deleted successfully',
+        ]);
+    }
+
     public function check(Request $request)
     {
         $request->validate([
@@ -230,7 +254,6 @@ class HealthConditionController extends Controller
 
         $conditionNames = $request->input('conditions');
 
-        // If frontend didn't send conditions, take from DB
         if (!$conditionNames) {
             $conditionNames = HealthCondition::query()
                 ->where('user_id', $profile->id)
@@ -244,7 +267,6 @@ class HealthConditionController extends Controller
             ->values()
             ->all();
 
-        // ✅ 1) rules: DB first, fallback if empty
         $rules = DB::table('contraindications')
             ->where('target_type', 'exercise')
             ->get();
@@ -257,14 +279,13 @@ class HealthConditionController extends Controller
             $rulesSource = 'fallback';
         }
 
-        // ✅ 2) ALWAYS use in-code exercises dataset
         $exercises = $this->defaultExercises();
         $exerciseSource = 'fallback';
 
         $aliases = $this->aliases();
 
-        $blocked = [];  // strict
-        $warnings = []; // warning
+        $blocked = [];
+        $warnings = [];
 
         foreach ($rulesArr as $r) {
             $ck = mb_strtolower(trim($r['condition_keyword'] ?? ''));
@@ -272,7 +293,6 @@ class HealthConditionController extends Controller
                 continue;
             }
 
-            // match condition keyword against provided conditions
             $matched = false;
             foreach ($conditionNames as $cn) {
                 $mt = $r['match_type'] ?? 'partial';
@@ -298,11 +318,8 @@ class HealthConditionController extends Controller
             }
 
             $severity = $r['severity_level'] ?? 'strict';
-
-            // ✅ resolve search terms from aliases
             $searchTerms = $aliases[$bk] ?? [$bk];
 
-            // ✅ search ONLY inside in-code dataset
             $found = [];
             foreach ($exercises as $e) {
                 $hay = mb_strtolower(
@@ -319,7 +336,7 @@ class HealthConditionController extends Controller
                     }
 
                     if (str_contains($hay, $term)) {
-                        $found[$e['id']] = $e; // prevent duplicates
+                        $found[$e['id']] = $e;
                         break;
                     }
                 }
@@ -336,7 +353,6 @@ class HealthConditionController extends Controller
                     'matched_keyword' => $r['blocked_keyword'] ?? null,
                 ];
 
-                // strict overrides warning
                 if ($severity === 'strict') {
                     $blocked[$e['id']] = $item;
                     unset($warnings[$e['id']]);

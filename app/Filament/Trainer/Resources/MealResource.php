@@ -6,16 +6,14 @@ use App\Filament\Trainer\Resources\MealResource\Pages;
 use App\Models\Meal;
 use App\Models\Profile;
 use App\Models\MemberMeal;
-use Filament\Forms;
-use Filament\Resources\Resource;
-use Filament\Tables;
-use Illuminate\Database\Eloquent\Builder;
-use Filament\Tables\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\FileUpload;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Actions\Action;
+use Illuminate\Database\Eloquent\Builder;
+use Filament\Forms\Components\ToggleButtons;
+
 
 class MealResource extends Resource
 {
@@ -27,57 +25,49 @@ class MealResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
+        $trainerProfileId = auth()->user()->profile->id;
+
         return parent::getEloquentQuery()
-            ->where('trainer_id', auth()->user()->profile->id);
+            ->where(function ($query) use ($trainerProfileId) {
+                $query->where('trainer_id', $trainerProfileId)
+                    ->orWhereNull('trainer_id');
+            });
     }
 
-    public static function form(Forms\Form $form): Forms\Form
+    public static function canCreate(): bool
     {
-        return $form->schema([
-            TextInput::make('name')
-                ->required()
-                ->maxLength(255),
+        return false;
+    }
 
-            Textarea::make('description'),
+    public static function canEdit($record): bool
+    {
+        return false;
+    }
 
-            Select::make('category')
-                ->options([
-                    'bulking' => 'Bulking',
-                    'weight_gain' => 'Weight Gain',
-                    'healthy' => 'Healthy',
-                    'cutting' => 'Cutting',
-                ])
-                ->required(),
-
-            TextInput::make('calories')->numeric(),
-            TextInput::make('protein')->numeric(),
-            TextInput::make('carbs')->numeric(),
-            TextInput::make('fats')->numeric(),
-
-            FileUpload::make('image_url')
-                ->label('Meal Image')
-                ->image()
-                ->disk('public')
-                ->directory('meals')
-                ->visibility('public')
-                ->imageEditor()
-                ->nullable(),
-        ]);
+    public static function canDelete($record): bool
+    {
+        return false;
     }
 
     public static function table(Tables\Table $table): Tables\Table
     {
         return $table
             ->columns([
-                
+                Tables\Columns\ImageColumn::make('image_url')
+                    ->label('Image')
+                    ->getStateUsing(fn ($record) => $record->image_url ? asset('storage/' . $record->image_url) : null)
+                    ->square()
+                    ->size(50),
 
-                Tables\Columns\TextColumn::make('name')->searchable(),
-                Tables\Columns\TextColumn::make('category')->badge(),
+                Tables\Columns\TextColumn::make('name')
+                    ->searchable(),
+
+                Tables\Columns\TextColumn::make('category')
+                    ->badge(),
+
                 Tables\Columns\TextColumn::make('calories'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-
                 Action::make('assign')
                     ->label('Assign to Member')
                     ->icon('heroicon-o-user-plus')
@@ -92,32 +82,43 @@ class MealResource extends Resource
                             ->searchable()
                             ->required(),
 
-                        Select::make('day_of_week')
-                            ->label('Day')
-                            ->options([
-                                'Monday' => 'Monday',
-                                'Tuesday' => 'Tuesday',
-                                'Wednesday' => 'Wednesday',
-                                'Thursday' => 'Thursday',
-                                'Friday' => 'Friday',
-                                'Saturday' => 'Saturday',
-                                'Sunday' => 'Sunday',
-                            ])
-                            ->required(),
+                        ToggleButtons::make('day_of_week')
+    ->label('Day')
+    ->options([
+        'Monday' => 'Monday',
+        'Tuesday' => 'Tuesday',
+        'Wednesday' => 'Wednesday',
+        'Thursday' => 'Thursday',
+        'Friday' => 'Friday',
+        'Saturday' => 'Saturday',
+        'Sunday' => 'Sunday',
+    ])
+    ->inline() // يخليهم جنب بعض
+    ->required(),
 
-                        Select::make('meal_time')
-                            ->label('Meal Time')
-                            ->options([
-                                'breakfast' => 'Breakfast',
-                                'lunch' => 'Lunch',
-                                'dinner' => 'Dinner',
-                                'snack' => 'Snack',
-                            ])
-                            ->required(),
+                        ToggleButtons::make('meal_time')
+    ->label('Meal Time')
+    ->options([
+        'breakfast' => 'Breakfast',
+        'lunch' => 'Lunch',
+        'dinner' => 'Dinner',
+        'snack' => 'Snack',
+    ])
+    ->colors([
+        'breakfast' => 'warning', // صباح
+        'lunch' => 'primary',     // وسط
+        'dinner' => 'success',    // مساء
+        'snack' => 'gray',        // خفيف
+    ])
+    ->inline()
+    ->required(),
 
-                        DatePicker::make('start_date')
-                            ->default(now())
-                            ->required(),
+                        TextInput::make('grams')
+                            ->label('Grams')
+                            ->numeric()
+                            ->minValue(1)
+                            ->required()
+                            ->suffix('g'),
                     ])
                     ->action(function (array $data, Meal $record) {
                         MemberMeal::updateOrCreate(
@@ -129,23 +130,20 @@ class MealResource extends Resource
                             ],
                             [
                                 'assigned_by' => auth()->user()->profile->id,
-                                'start_date'  => $data['start_date'],
+                                'grams'       => $data['grams'],
+                                'start_date'  => now()->toDateString(),
                                 'is_active'   => true,
                             ]
                         );
                     })
                     ->successNotificationTitle('Meal assigned successfully'),
-
-                Tables\Actions\DeleteAction::make(),
             ]);
     }
 
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListMeals::route('/'),
-            'create' => Pages\CreateMeal::route('/create'),
-            'edit'   => Pages\EditMeal::route('/{record}/edit'),
+            'index' => Pages\ListMeals::route('/'),
         ];
     }
 }
