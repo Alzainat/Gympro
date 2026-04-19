@@ -1,27 +1,14 @@
 <?php
 
-namespace App\Filament\Trainer\Resources\WorkoutRoutineResource\Pages;
+namespace App\Filament\Admin\Resources\WorkoutRoutineResource\Pages;
 
-use App\Filament\Trainer\Resources\WorkoutRoutineResource;
+use App\Filament\Admin\Resources\WorkoutRoutineResource;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateWorkoutRoutine extends CreateRecord
 {
     protected static string $resource = WorkoutRoutineResource::class;
 
-    /**
-     * ربط الـ routine بالمدرب تلقائيًا
-     */
-    protected function mutateFormDataBeforeCreate(array $data): array
-    {
-        $data['creator_id'] = auth()->user()->profile->id;
-
-        return $data;
-    }
-
-    /**
-     * بعد الإنشاء: نحفظ التمارين
-     */
     protected function afterCreate(): void
     {
         $this->syncExercises();
@@ -50,9 +37,6 @@ class CreateWorkoutRoutine extends CreateRecord
         }
     }
 
-    /**
-     * Redirect بعد الإنشاء
-     */
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('index');

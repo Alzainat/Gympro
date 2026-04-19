@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DietPlan;
 use App\Models\MemberMeal;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class DietController extends Controller
 {
@@ -42,40 +43,55 @@ class DietController extends Controller
         }
 
         $profileId = $profile->id;
+        $selectedDate = $request->query('date')
+            ? Carbon::parse($request->query('date'))->toDateString()
+            : now()->toDateString();
 
         $items = MemberMeal::query()
             ->where('member_id', $profileId)
             ->where('is_active', 1)
-            ->whereDate('end_date', '>=', now()->toDateString())
+            ->whereDate('start_date', '<=', $selectedDate)
+            ->where(function ($q) use ($selectedDate) {
+                $q->whereNull('end_date')
+                    ->orWhereDate('end_date', '>=', $selectedDate);
+            })
             ->with(['meal:id,name,description,category,calories,protein,carbs,fats,image_url'])
             ->orderBy('day_of_week')
             ->orderBy('meal_time')
             ->orderByDesc('start_date')
-            ->get()
-            ->map(function (MemberMeal $mm) {
-                $m = $mm->meal;
+            ->get();
 
-                return [
-                    'assignment_id' => $mm->id,
-                    'meal_id'       => $m?->id,
-                    'meal_time'     => $mm->meal_time,
-                    'day_of_week'   => $mm->day_of_week,
-                    'start_date'    => $mm->start_date?->toDateString(),
-                    'end_date'      => $mm->end_date?->toDateString(),
-                    'grams'         => $mm->grams,
+        $planStartDate = $items->sortBy('start_date')->first()?->start_date?->toDateString();
+        $planEndDate = $items
+            ->filter(fn ($item) => !empty($item->end_date))
+            ->sortByDesc('end_date')
+            ->first()?->end_date?->toDateString();
 
-                    'name'        => $m?->name,
-                    'description' => $m?->description,
-                    'category'    => $m?->category,
+        $mappedItems = $items->map(function (MemberMeal $mm) {
+            $m = $mm->meal;
 
-                    'calories' => $m?->calories,
-                    'protein'  => $m?->protein,
-                    'carbs'    => $m?->carbs,
-                    'fats'     => $m?->fats,
+            return [
+                'assignment_id' => $mm->id,
+                'meal_id'       => $m?->id,
+                'meal_time'     => $mm->meal_time,
+                'day_of_week'   => $mm->day_of_week,
+                'start_date'    => $mm->start_date?->toDateString(),
+                'end_date'      => $mm->end_date?->toDateString(),
+                'source'        => $mm->source,
+                'grams'         => $mm->grams,
 
-                    'image_url' => $m?->image_url,
-                ];
-            });
+                'name'        => $m?->name,
+                'description' => $m?->description,
+                'category'    => $m?->category,
+
+                'calories' => $m?->calories,
+                'protein'  => $m?->protein,
+                'carbs'    => $m?->carbs,
+                'fats'     => $m?->fats,
+
+                'image_url' => $m?->image_url,
+            ];
+        });
 
         $days  = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
         $times = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -83,7 +99,7 @@ class DietController extends Controller
         $result = [];
 
         foreach ($days as $day) {
-            $dayItems = $items->where('day_of_week', $day);
+            $dayItems = $mappedItems->where('day_of_week', $day);
             $grouped = $dayItems->groupBy('meal_time');
 
             $result[$day] = [];
@@ -99,6 +115,18 @@ class DietController extends Controller
             $result[$day]['other'] = $others;
         }
 
-        return response()->json($result);
+        return response()->json([
+            'meta' => [
+                'selected_date' => $selectedDate,
+                'plan_timer' => $mappedItems->isEmpty() ? null : [
+                    'id' => 'website-meals-plan',
+                    'title' => 'Website Meal Plan',
+                    'source' => 'payment',
+                    'start_date' => $planStartDate,
+                    'end_date' => $planEndDate,
+                ],
+            ],
+            'days' => $result,
+        ]);
     }
 }

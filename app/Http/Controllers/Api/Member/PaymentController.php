@@ -11,6 +11,7 @@ use App\Models\Meal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 
 class PaymentController extends Controller
 {
@@ -71,7 +72,6 @@ class PaymentController extends Controller
 
         $profileId = $profile->id;
 
-        // ✅ جلب الخطة من config/plans.php حسب الهدف + الباقة
         $plan = config('plans.' . $data['goal'] . '.' . $data['plan_key']);
 
         if (!$plan || !is_array($plan)) {
@@ -84,9 +84,9 @@ class PaymentController extends Controller
 
         return DB::transaction(function () use ($data, $profile, $profileId, $plan, $days) {
             $startDate = now()->toDateString();
-            $endDate = now()->addMonth()->toDateString();
+            $durationDays = (int) ($plan['duration_days'] ?? 30);
+            $endDate = Carbon::parse($startDate)->addDays($durationDays - 1)->toDateString();
 
-            // ===== 1) ✅ تحقق من الروتينات المطلوبة بالخطة قبل أي عملية دفع =====
             $routineIds = Arr::wrap($plan['routines'] ?? []);
 
             if (count($routineIds) === 0) {
@@ -105,7 +105,6 @@ class PaymentController extends Controller
                 ], 422);
             }
 
-            // ===== 2) ✅ تحقق من الوجبات المطلوبة بالخطة قبل أي عملية دفع =====
             $planMeals = $plan['meals'] ?? [];
 
             if (count($planMeals) === 0) {
@@ -137,25 +136,24 @@ class PaymentController extends Controller
                 ], 422);
             }
 
-            // ===== 3) ✅ حدّث حالة اشتراك العضو =====
             if ($profile->memberProfile) {
                 $profile->memberProfile->update([
                     'membership_tier' => $data['plan_key'],
-                    'membership_expires_at' => $endDate,
-                    // 'goal' => $data['goal'], // فعّلها إذا عندك العمود
                 ]);
             }
 
-            // ===== 4) ✅ أرشف/عطّل القديم =====
-            MemberRoutine::where('member_id', $profileId)->update([
-                'status' => 'archived',
-            ]);
+            MemberRoutine::where('member_id', $profileId)
+                ->where('source', 'payment')
+                ->update([
+                    'status' => 'archived',
+                ]);
 
-            MemberMeal::where('member_id', $profileId)->update([
-                'is_active' => 0,
-            ]);
+            MemberMeal::where('member_id', $profileId)
+                ->where('source', 'payment')
+                ->update([
+                    'is_active' => 0,
+                ]);
 
-            // ===== 5) ✅ اسند الروتينات للعضو =====
             foreach ($routineIds as $rid) {
                 MemberRoutine::create([
                     'member_id' => $profileId,
@@ -163,11 +161,11 @@ class PaymentController extends Controller
                     'assigned_by' => null,
                     'start_date' => $startDate,
                     'end_date' => $endDate,
+                    'source' => 'payment',
                     'status' => 'active',
                 ]);
             }
 
-            // ===== 6) ✅ اسند الوجبات للعضو =====
             $mealsById = Meal::whereIn('id', $mealIds)->get()->keyBy('id');
 
             $dayIndex = 0;
@@ -182,16 +180,17 @@ class PaymentController extends Controller
                     'meal_id' => $row['meal_id'],
                     'assigned_by' => $meal?->trainer_id,
                     'meal_time' => $row['meal_time'] ?? null,
+                    'grams' => $row['grams'] ?? null,
                     'day_of_week' => $assignedDay,
                     'start_date' => $startDate,
                     'end_date' => $endDate,
+                    'source' => 'payment',
                     'is_active' => 1,
                 ]);
             }
 
-            // ===== 7) ✅ سجل الدفع آخر شيء فقط بعد نجاح كل شيء =====
             $payment = Payment::create([
-                'user_id' => $profileId, // FK -> profiles.id
+                'user_id' => $profileId,
                 'amount' => $plan['price'] ?? 0,
                 'payment_type' => 'membership',
                 'payment_method' => $data['payment_method'],
@@ -236,8 +235,6 @@ class PaymentController extends Controller
 
     /**
      * GET /member/plan-details?goal=cutting|bulking
-     * - إذا بعت goal: بيرجع تفاصيل tiers لهذا الهدف
-     * - إذا ما بعت: بيرجع تفاصيل كل الأهداف
      */
     public function planDetails(Request $request)
     {
@@ -253,7 +250,7 @@ class PaymentController extends Controller
 
         $result = [];
 
-        $isMultiGoal = $goal ? false : true;
+        $isMultiGoal = !$goal;
 
         if ($isMultiGoal) {
             foreach ($plans as $g => $tiers) {
@@ -268,9 +265,6 @@ class PaymentController extends Controller
         return response()->json($result);
     }
 
-    /**
-     * Helper: builds details for tiers inside ONE goal
-     */
     private function buildGoalPlanDetails(array $tiers)
     {
         $out = [];
@@ -301,11 +295,13 @@ class PaymentController extends Controller
                     'name' => $m?->name,
                     'meal_time' => $row['meal_time'] ?? null,
                     'day_of_week' => $row['day_of_week'] ?? null,
+                    'grams' => $row['grams'] ?? null,
                 ];
             })->values();
 
             $out[$key] = [
                 'price' => $p['price'] ?? 0,
+                'duration_days' => $p['duration_days'] ?? 30,
                 'routines' => $routines,
                 'meals' => $meals,
             ];

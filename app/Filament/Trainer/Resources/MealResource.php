@@ -6,14 +6,13 @@ use App\Filament\Trainer\Resources\MealResource\Pages;
 use App\Models\Meal;
 use App\Models\Profile;
 use App\Models\MemberMeal;
-use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\ToggleButtons;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Actions\Action;
 use Illuminate\Database\Eloquent\Builder;
-use Filament\Forms\Components\ToggleButtons;
-
 
 class MealResource extends Resource
 {
@@ -71,47 +70,64 @@ class MealResource extends Resource
                 Action::make('assign')
                     ->label('Assign to Member')
                     ->icon('heroicon-o-user-plus')
+                    ->modalHeading('Assign Meal')
+                    ->modalSubmitActionLabel('Assign')
+                    ->modalWidth('4xl')
                     ->form([
-                        Select::make('member_id')
-                            ->label('Member')
-                            ->options(fn () =>
-                                Profile::where('trainer_id', auth()->user()->profile->id)
+                        Radio::make('member_id')
+                            ->label('Choose Member')
+                            ->options(function () {
+                                return Profile::query()
+                                    ->where('trainer_id', auth()->user()->profile->id)
                                     ->where('role', 'member')
                                     ->pluck('full_name', 'id')
-                            )
-                            ->searchable()
+                                    ->toArray();
+                            })
+                            ->descriptions(function () {
+                                return Profile::query()
+                                    ->where('trainer_id', auth()->user()->profile->id)
+                                    ->where('role', 'member')
+                                    ->get()
+                                    ->mapWithKeys(function ($member) {
+                                        return [
+                                            $member->id => 'Member ID: ' . $member->id,
+                                        ];
+                                    })
+                                    ->toArray();
+                            })
+                            ->columns(2)
                             ->required(),
 
                         ToggleButtons::make('day_of_week')
-    ->label('Day')
-    ->options([
-        'Monday' => 'Monday',
-        'Tuesday' => 'Tuesday',
-        'Wednesday' => 'Wednesday',
-        'Thursday' => 'Thursday',
-        'Friday' => 'Friday',
-        'Saturday' => 'Saturday',
-        'Sunday' => 'Sunday',
-    ])
-    ->inline() // يخليهم جنب بعض
-    ->required(),
+                            ->label('Day')
+                            ->options([
+                                'Monday' => 'Monday',
+                                'Tuesday' => 'Tuesday',
+                                'Wednesday' => 'Wednesday',
+                                'Thursday' => 'Thursday',
+                                'Friday' => 'Friday',
+                                'Saturday' => 'Saturday',
+                                'Sunday' => 'Sunday',
+                            ])
+                            ->inline()
+                            ->required(),
 
                         ToggleButtons::make('meal_time')
-    ->label('Meal Time')
-    ->options([
-        'breakfast' => 'Breakfast',
-        'lunch' => 'Lunch',
-        'dinner' => 'Dinner',
-        'snack' => 'Snack',
-    ])
-    ->colors([
-        'breakfast' => 'warning', // صباح
-        'lunch' => 'primary',     // وسط
-        'dinner' => 'success',    // مساء
-        'snack' => 'gray',        // خفيف
-    ])
-    ->inline()
-    ->required(),
+                            ->label('Meal Time')
+                            ->options([
+                                'breakfast' => 'Breakfast',
+                                'lunch' => 'Lunch',
+                                'dinner' => 'Dinner',
+                                'snack' => 'Snack',
+                            ])
+                            ->colors([
+                                'breakfast' => 'warning',
+                                'lunch' => 'primary',
+                                'dinner' => 'success',
+                                'snack' => 'gray',
+                            ])
+                            ->inline()
+                            ->required(),
 
                         TextInput::make('grams')
                             ->label('Grams')

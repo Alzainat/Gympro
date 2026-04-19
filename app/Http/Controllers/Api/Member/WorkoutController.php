@@ -33,16 +33,29 @@ class WorkoutController extends Controller
             ? Carbon::parse($request->query('date'))->toDateString()
             : now()->toDateString();
 
-        $routineIds = MemberRoutine::query()
+        $memberRoutines = MemberRoutine::query()
             ->where('member_id', $profileId)
             ->where('status', 'active')
-            ->whereDate('end_date', '>=', now()->toDateString())
+            ->whereDate('start_date', '<=', $selectedDate)
+            ->where(function ($q) use ($selectedDate) {
+                $q->whereNull('end_date')
+                    ->orWhereDate('end_date', '>=', $selectedDate);
+            })
+            ->get();
+
+        $routineIds = $memberRoutines
             ->pluck('routine_id')
             ->unique()
             ->values();
 
         if ($routineIds->isEmpty()) {
-            return response()->json((object) []);
+            return response()->json([
+                'meta' => [
+                    'selected_date' => $selectedDate,
+                    'plan_timers' => [],
+                ],
+                'days' => (object) [],
+            ]);
         }
 
         $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -55,7 +68,8 @@ class WorkoutController extends Controller
                 },
                 'routineExercises.exercise:id,name,target_muscle,equipment,difficulty,video_url,image_url',
             ])
-            ->get();
+            ->get()
+            ->keyBy('id');
 
         $logs = MemberExerciseLog::query()
             ->where('member_id', $profileId)
@@ -68,7 +82,13 @@ class WorkoutController extends Controller
             $result[$d] = [];
         }
 
-        foreach ($routines as $routine) {
+        foreach ($memberRoutines as $memberRoutine) {
+            $routine = $routines->get($memberRoutine->routine_id);
+
+            if (!$routine) {
+                continue;
+            }
+
             $byDay = $routine->routineExercises
                 ->filter(fn ($re) => $re->exercise)
                 ->groupBy(fn ($re) => $re->day_of_week ?? 'Monday');
@@ -94,13 +114,11 @@ class WorkoutController extends Controller
                         'difficulty' => $ex->difficulty,
                         'video_url' => $ex->video_url,
                         'image_url' => $ex->image_url,
-
                         'sets' => $re->sets,
                         'reps' => $re->reps,
                         'rest_seconds' => $re->rest_seconds,
                         'order_index' => $re->order_index,
                         'notes' => $re->notes,
-
                         'member_log' => $log ? [
                             'id' => $log->id,
                             'workout_date' => optional($log->workout_date)->toDateString(),
@@ -113,17 +131,46 @@ class WorkoutController extends Controller
                 })->values();
 
                 $result[$day][] = [
+                    'member_routine_id' => $memberRoutine->id,
                     'routine_id' => $routine->id,
                     'routine_name' => $routine->name,
                     'description' => $routine->description,
                     'difficulty' => $routine->difficulty_level,
                     'selected_date' => $selectedDate,
+                    'start_date' => optional($memberRoutine->start_date)->toDateString(),
+                    'end_date' => optional($memberRoutine->end_date)->toDateString(),
+                    'status' => $memberRoutine->status,
+                    'source' => $memberRoutine->source,
+                    'assigned_by' => $memberRoutine->assigned_by,
                     'exercises' => $exercises,
                 ];
             }
         }
 
-        return response()->json($result);
+        $planTimers = $memberRoutines
+            ->groupBy('source')
+            ->map(function ($items, $source) {
+                $first = $items->sortBy('start_date')->first();
+                $last = $items->filter(fn ($x) => !empty($x->end_date))->sortByDesc('end_date')->first();
+
+                return [
+                    'id' => $source . '-plan',
+                    'title' => $source === 'trainer' ? 'Trainer Plan' : 'Website Plan',
+                    'source' => $source,
+                    'start_date' => optional($first?->start_date)->toDateString(),
+                    'end_date' => optional($last?->end_date)->toDateString(),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return response()->json([
+            'meta' => [
+                'selected_date' => $selectedDate,
+                'plan_timers' => $planTimers,
+            ],
+            'days' => $result,
+        ]);
     }
 
     /**
@@ -173,7 +220,11 @@ class WorkoutController extends Controller
             ->where('member_id', $profileId)
             ->where('routine_id', $data['routine_id'])
             ->where('status', 'active')
-            ->whereDate('end_date', '>=', now()->toDateString())
+            ->whereDate('start_date', '<=', $data['workout_date'])
+            ->where(function ($q) use ($data) {
+                $q->whereNull('end_date')
+                    ->orWhereDate('end_date', '>=', $data['workout_date']);
+            })
             ->exists();
 
         if (!$memberHasRoutine) {
@@ -217,9 +268,6 @@ class WorkoutController extends Controller
         ]);
     }
 
-    /**
-     * اختياري - لو عندك تفاصيل روتين
-     */
     public function show($id)
     {
         $routine = WorkoutRoutine::query()
@@ -231,9 +279,6 @@ class WorkoutController extends Controller
         return response()->json($routine);
     }
 
-    /**
-     * اختياري - إذا عندك assign من قبل
-     */
     public function assign(Request $request, $id)
     {
         return response()->json([

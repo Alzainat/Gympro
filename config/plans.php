@@ -12,7 +12,8 @@ return [
 
         'bronze' => [
             'price' => 20,
-            'routines' => [1], // تمارين حرق دهون خفيفة
+            'duration_days' => 30,
+            'routines' => [1],
             'meals' => [
                 ['meal_id' => 1, 'meal_time' => 'breakfast'],
                 ['meal_id' => 2, 'meal_time' => 'lunch'],
@@ -21,7 +22,8 @@ return [
 
         'silver' => [
             'price' => 40,
-            'routines' => [2, 3], // تمارين كارديو + مقاومة
+            'duration_days' => 30,
+            'routines' => [2, 3],
             'meals' => [
                 ['meal_id' => 3, 'meal_time' => 'breakfast'],
                 ['meal_id' => 4, 'meal_time' => 'lunch'],
@@ -31,7 +33,8 @@ return [
 
         'gold' => [
             'price' => 70,
-            'routines' => [4, 5, 6], // برنامج حرق مكثف
+            'duration_days' => 30,
+            'routines' => [4, 5, 6],
             'meals' => [
                 ['meal_id' => 6, 'meal_time' => 'breakfast'],
                 ['meal_id' => 7, 'meal_time' => 'snack'],
@@ -51,7 +54,8 @@ return [
 
         'bronze' => [
             'price' => 25,
-            'routines' => [7], // تمارين مقاومة أساسية
+            'duration_days' => 30,
+            'routines' => [7],
             'meals' => [
                 ['meal_id' => 10, 'meal_time' => 'breakfast'],
                 ['meal_id' => 11, 'meal_time' => 'lunch'],
@@ -60,7 +64,8 @@ return [
 
         'silver' => [
             'price' => 50,
-            'routines' => [8, 9], // تضخيم متوسط
+            'duration_days' => 30,
+            'routines' => [8, 9],
             'meals' => [
                 ['meal_id' => 12, 'meal_time' => 'breakfast'],
                 ['meal_id' => 13, 'meal_time' => 'snack'],
@@ -71,7 +76,8 @@ return [
 
         'gold' => [
             'price' => 80,
-            'routines' => [10, 11, 12], // برنامج تضخيم احترافي
+            'duration_days' => 30,
+            'routines' => [10, 11, 12],
             'meals' => [
                 ['meal_id' => 16, 'meal_time' => 'breakfast'],
                 ['meal_id' => 17, 'meal_time' => 'snack'],

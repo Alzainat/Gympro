@@ -9,7 +9,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules;
 use Illuminate\View\View;
 
 class RegisteredUserController extends Controller
@@ -32,19 +31,22 @@ class RegisteredUserController extends Controller
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => [
-            'required',
-            'string',
-            'lowercase',
-            'email',
-            'regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/',
-            'max:255',
-            'unique:'.User::class
+                'required',
+                'string',
+                'lowercase',
+                'email',
+                'regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/',
+                'max:255',
+                'unique:' . User::class,
             ],
             'password' => [
-            'required',
-            'confirmed',
-            'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/'
-],
+                'required',
+                'confirmed',
+                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/',
+            ],
+        ], [
+            'email.regex' => 'Only Gmail accounts are allowed.',
+            'password.regex' => 'Password must be at least 8 characters and include uppercase, lowercase, number, and special character.',
         ]);
 
         $user = User::create([

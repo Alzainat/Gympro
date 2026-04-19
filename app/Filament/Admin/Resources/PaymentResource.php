@@ -4,6 +4,7 @@ namespace App\Filament\Admin\Resources;
 
 use App\Filament\Admin\Resources\PaymentResource\Pages;
 use App\Models\Payment;
+use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -131,6 +132,54 @@ class PaymentResource extends Resource
                         'danger'  => 'failed',
                         'gray'    => 'refunded',
                     ]),
+
+                Tables\Columns\TextColumn::make('trainers_count')
+                    ->label('Trainers Count')
+                    ->state(function ($record) {
+                        if ($record->payment_type !== 'membership') {
+                            return '-';
+                        }
+
+                        return User::whereHas('profile', function ($query) {
+                            $query->where('role', 'trainer');
+                        })->count();
+                    }),
+
+                Tables\Columns\TextColumn::make('trainer_share')
+                    ->label('Trainer Share')
+                    ->state(function ($record) {
+                        if ($record->payment_type !== 'membership') {
+                            return '-';
+                        }
+
+                        $trainersCount = User::whereHas('profile', function ($query) {
+                            $query->where('role', 'trainer');
+                        })->count();
+
+                        if ($trainersCount === 0) {
+                            return 'No trainers';
+                        }
+
+                        $trainerPercentage = 40; // نسبة المدربين من الاشتراك
+                        $totalTrainerShare = ($record->amount * $trainerPercentage) / 100;
+                        $eachTrainerShare = $totalTrainerShare / $trainersCount;
+
+                        return 'Each Trainer: ' . number_format($eachTrainerShare, 2) . ' USD';
+                    })
+                    ->wrap(),
+
+                Tables\Columns\TextColumn::make('platform_share')
+                    ->label('Platform Share')
+                    ->state(function ($record) {
+                        if ($record->payment_type !== 'membership') {
+                            return '-';
+                        }
+
+                        $trainerPercentage = 40; // نسبة المدربين
+                        $platformShare = $record->amount - (($record->amount * $trainerPercentage) / 100);
+
+                        return number_format($platformShare, 2) . ' USD';
+                    }),
 
                 Tables\Columns\TextColumn::make('payment_date')
                     ->dateTime()

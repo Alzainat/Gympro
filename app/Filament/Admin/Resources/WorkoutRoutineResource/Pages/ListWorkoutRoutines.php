@@ -1,8 +1,9 @@
 <?php
 
-namespace App\Filament\Trainer\Resources\WorkoutRoutineResource\Pages;
+namespace App\Filament\Admin\Resources\WorkoutRoutineResource\Pages;
 
-use App\Filament\Trainer\Resources\WorkoutRoutineResource;
+use App\Filament\Admin\Resources\WorkoutRoutineResource;
+use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 
 class ListWorkoutRoutines extends ListRecords
@@ -11,6 +12,8 @@ class ListWorkoutRoutines extends ListRecords
 
     protected function getHeaderActions(): array
     {
-        return [];
+        return [
+            Actions\CreateAction::make(),
+        ];
     }
 }

@@ -19,11 +19,14 @@ class MemberMeal extends Model
         'grams',
         'day_of_week',
         'start_date',
+        'end_date',
+        'source',
         'is_active',
     ];
 
     protected $casts = [
         'start_date' => 'date',
+        'end_date'   => 'date',
         'is_active'  => 'boolean',
     ];
 

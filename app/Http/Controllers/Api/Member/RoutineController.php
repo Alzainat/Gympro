@@ -39,12 +39,10 @@ class RoutineController extends Controller
         $routine = WorkoutRoutine::query()->findOrFail($routineId);
 
         $startDate = now()->toDateString();
-        $endDate = now()->addMonth()->toDateString();
 
         $alreadyAssigned = $profile->memberRoutines()
             ->where('routine_id', $routineId)
             ->where('status', 'active')
-            ->whereDate('end_date', '>=', now()->toDateString())
             ->exists();
 
         if ($alreadyAssigned) {
@@ -56,14 +54,12 @@ class RoutineController extends Controller
         $profile->memberRoutines()->create([
             'routine_id' => $routine->id,
             'start_date' => $startDate,
-            'end_date' => $endDate,
             'status' => 'active',
         ]);
 
         return response()->json([
             'message' => 'Routine assigned successfully.',
             'start_date' => $startDate,
-            'end_date' => $endDate,
         ], 201);
     }
 }

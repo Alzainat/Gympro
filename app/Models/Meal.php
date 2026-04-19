@@ -30,17 +30,11 @@ class Meal extends Model
         'fats'        => 'decimal:2',
     ];
 
-    /**
-     * Trainer (profile) who created the meal
-     */
     public function trainer()
     {
         return $this->belongsTo(Profile::class, 'trainer_id');
     }
 
-    /**
-     * Member meal assignments
-     */
     public function assignments()
     {
         return $this->hasMany(MemberMeal::class);

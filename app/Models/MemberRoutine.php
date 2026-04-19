@@ -11,10 +11,11 @@ class MemberRoutine extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['member_id','routine_id','assigned_by','start_date','status'];
+    protected $fillable = ['member_id','routine_id','assigned_by','start_date','end_date','source','status'];
 
     protected $casts = [
         'start_date' => 'date',
+        'end_date' => 'date',
     ];
 
     public function member()

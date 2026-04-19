@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
@@ -24,15 +26,21 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
+        if (!Str::endsWith(strtolower($request->email), '@gmail.com')) {
+            throw ValidationException::withMessages([
+                'email' => 'Only Gmail accounts are allowed.',
+            ]);
+        }
+
         $request->authenticate();
 
         $request->session()->regenerate();
 
         return match ($request->user()->profile?->role) {
-    'admin'   => redirect('/admin'),
-    'trainer' => redirect('/trainer'),
-    default   => redirect('/'),
-};
+            'admin'   => redirect('/admin'),
+            'trainer' => redirect('/trainer'),
+            default   => redirect('/'),
+        };
     }
 
     /**
