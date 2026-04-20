@@ -10,6 +10,7 @@ use App\Models\MemberExerciseLog;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class WorkoutController extends Controller
 {
@@ -72,8 +73,9 @@ class WorkoutController extends Controller
             ->keyBy('id');
 
         $logs = MemberExerciseLog::query()
+            ->with('sets')
             ->where('member_id', $profileId)
-            ->where('workout_date', $selectedDate)
+            ->whereDate('workout_date', $selectedDate)
             ->get()
             ->keyBy('routine_exercise_id');
 
@@ -122,10 +124,16 @@ class WorkoutController extends Controller
                         'member_log' => $log ? [
                             'id' => $log->id,
                             'workout_date' => optional($log->workout_date)->toDateString(),
-                            'weight' => $log->weight,
-                            'sets_done' => $log->sets_done,
-                            'reps_done' => $log->reps_done,
                             'note' => $log->note,
+                            'sets' => $log->sets->map(function ($set) {
+                                return [
+                                    'id' => $set->id,
+                                    'round' => $set->round,
+                                    'weight' => $set->weight,
+                                    'reps' => $set->reps,
+                                    'done' => (bool) $set->done,
+                                ];
+                            })->values(),
                         ] : null,
                     ];
                 })->values();
@@ -198,10 +206,13 @@ class WorkoutController extends Controller
                 'required',
                 Rule::in(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']),
             ],
-            'weight' => ['nullable', 'numeric', 'min:0'],
-            'sets_done' => ['nullable', 'integer', 'min:0'],
-            'reps_done' => ['nullable', 'integer', 'min:0'],
             'note' => ['nullable', 'string', 'max:2000'],
+
+            'sets' => ['required', 'array', 'min:1'],
+            'sets.*.round' => ['required', 'integer', 'min:1'],
+            'sets.*.weight' => ['nullable', 'numeric', 'min:0'],
+            'sets.*.reps' => ['nullable', 'integer', 'min:0'],
+            'sets.*.done' => ['nullable', 'boolean'],
         ]);
 
         $routineExercise = RoutineExercise::query()
@@ -233,22 +244,34 @@ class WorkoutController extends Controller
             ], 403);
         }
 
-        $log = MemberExerciseLog::updateOrCreate(
-            [
-                'member_id' => $profileId,
-                'routine_exercise_id' => $data['routine_exercise_id'],
-                'workout_date' => Carbon::parse($data['workout_date'])->toDateString(),
-            ],
-            [
-                'routine_id' => $data['routine_id'],
-                'exercise_id' => $data['exercise_id'],
-                'day_of_week' => $data['day_of_week'],
-                'weight' => $data['weight'] ?? null,
-                'sets_done' => $data['sets_done'] ?? null,
-                'reps_done' => $data['reps_done'] ?? null,
-                'note' => $data['note'] ?? null,
-            ]
-        );
+        $log = DB::transaction(function () use ($profileId, $data) {
+            $log = MemberExerciseLog::updateOrCreate(
+                [
+                    'member_id' => $profileId,
+                    'routine_exercise_id' => $data['routine_exercise_id'],
+                    'workout_date' => Carbon::parse($data['workout_date'])->toDateString(),
+                ],
+                [
+                    'routine_id' => $data['routine_id'],
+                    'exercise_id' => $data['exercise_id'],
+                    'day_of_week' => $data['day_of_week'],
+                    'note' => $data['note'] ?? null,
+                ]
+            );
+
+            $log->sets()->delete();
+
+            foreach ($data['sets'] as $set) {
+                $log->sets()->create([
+                    'round' => $set['round'],
+                    'weight' => $set['weight'] ?? null,
+                    'reps' => $set['reps'] ?? null,
+                    'done' => (bool) ($set['done'] ?? false),
+                ]);
+            }
+
+            return $log->load('sets');
+        });
 
         return response()->json([
             'message' => 'Workout log saved successfully.',
@@ -260,10 +283,16 @@ class WorkoutController extends Controller
                 'exercise_id' => $log->exercise_id,
                 'workout_date' => optional($log->workout_date)->toDateString(),
                 'day_of_week' => $log->day_of_week,
-                'weight' => $log->weight,
-                'sets_done' => $log->sets_done,
-                'reps_done' => $log->reps_done,
                 'note' => $log->note,
+                'sets' => $log->sets->map(function ($set) {
+                    return [
+                        'id' => $set->id,
+                        'round' => $set->round,
+                        'weight' => $set->weight,
+                        'reps' => $set->reps,
+                        'done' => (bool) $set->done,
+                    ];
+                })->values(),
             ],
         ]);
     }

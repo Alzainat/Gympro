@@ -16,15 +16,11 @@ class MemberExerciseLog extends Model
         'exercise_id',
         'workout_date',
         'day_of_week',
-        'weight',
-        'sets_done',
-        'reps_done',
         'note',
     ];
 
     protected $casts = [
         'workout_date' => 'date',
-        'weight' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -47,5 +43,11 @@ class MemberExerciseLog extends Model
     public function exercise()
     {
         return $this->belongsTo(Exercise::class, 'exercise_id');
+    }
+
+    public function sets()
+    {
+        return $this->hasMany(MemberExerciseLogSet::class, 'member_exercise_log_id')
+            ->orderBy('round');
     }
 }
