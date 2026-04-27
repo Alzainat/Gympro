@@ -10,6 +10,19 @@ use Illuminate\Support\Facades\DB;
 
 class TrainerDirectoryController extends Controller
 {
+    private function avatarUrl(?string $path): ?string
+    {
+        if (! $path) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        return asset('storage/' . $path);
+    }
+
     public function index(Request $request)
     {
         $trainers = Profile::query()
@@ -23,12 +36,13 @@ class TrainerDirectoryController extends Controller
                 'id' => $p->id,
                 'trainer_id' => $p->id,
                 'full_name' => $p->full_name,
-                'avatar_url' => $p->avatar_url,
+                'avatar_url' => $this->avatarUrl($p->avatar_url),
                 'bio' => $p->bio,
                 'email' => $p->user?->email,
                 'rating' => $p->trainerProfile?->rating,
                 'review_count' => $p->trainerProfile?->review_count,
                 'hourly_rate' => $p->trainerProfile?->hourly_rate,
+                'experience_years' => $p->trainerProfile?->experience_years,
                 'is_available' => $p->trainerProfile?->is_available,
                 'specializations' => $p->trainerProfile?->specializations,
             ];
@@ -45,9 +59,9 @@ class TrainerDirectoryController extends Controller
             ->with(['trainerProfile', 'user'])
             ->first();
 
-        if (!$trainer) {
+        if (! $trainer) {
             return response()->json([
-                'message' => 'Trainer not found'
+                'message' => 'Trainer not found',
             ], 404);
         }
 
@@ -55,12 +69,13 @@ class TrainerDirectoryController extends Controller
             'id' => $trainer->id,
             'trainer_id' => $trainer->id,
             'full_name' => $trainer->full_name,
-            'avatar_url' => $trainer->avatar_url,
+            'avatar_url' => $this->avatarUrl($trainer->avatar_url),
             'bio' => $trainer->bio,
             'email' => $trainer->user?->email,
             'rating' => $trainer->trainerProfile?->rating,
             'review_count' => $trainer->trainerProfile?->review_count,
             'hourly_rate' => $trainer->trainerProfile?->hourly_rate,
+            'experience_years' => $trainer->trainerProfile?->experience_years,
             'is_available' => $trainer->trainerProfile?->is_available,
             'specializations' => $trainer->trainerProfile?->specializations,
             'certification_url' => $trainer->trainerProfile?->certification_url,
@@ -73,11 +88,10 @@ class TrainerDirectoryController extends Controller
         $sessions = TrainingSession::query()
             ->where('trainer_id', $trainerId)
             ->where('is_active', 1)
-            // ->where('session_date', '>=', now())
             ->withCount([
                 'bookings as booked_count' => function ($q) {
                     $q->where('status', 'booked');
-                }
+                },
             ])
             ->orderBy('session_date')
             ->get()
@@ -85,7 +99,7 @@ class TrainerDirectoryController extends Controller
             ->values();
 
         return response()->json([
-            'data' => $sessions
+            'data' => $sessions,
         ]);
     }
 
