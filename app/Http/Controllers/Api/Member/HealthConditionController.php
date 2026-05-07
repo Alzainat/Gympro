@@ -267,9 +267,7 @@ class HealthConditionController extends Controller
             ->values()
             ->all();
 
-        $rules = DB::table('contraindications')
-            ->where('target_type', 'exercise')
-            ->get();
+        $rules = DB::table('contraindications')->get();
 
         $rulesArr = $rules->map(fn($r) => (array) $r)->toArray();
         $rulesSource = 'db';
@@ -279,15 +277,37 @@ class HealthConditionController extends Controller
             $rulesSource = 'fallback';
         }
 
-        $exercises = $this->defaultExercises();
-        $exerciseSource = 'fallback';
+        $exercises = DB::table('exercises')
+           ->get()
+           ->map(fn($e) => [
+              'id' => $e->id,
+              'name' => $e->name,
+              'target_muscle' => $e->target_muscle,
+              'equipment' => $e->equipment,
+              'difficulty' => $e->difficulty,
+              'image' => $e->image_url,
+            ])
+            ->toArray();
+
+        $exerciseSource = 'db';
+
+        $meals = DB::table('meals')->get()->map(fn($m) => (array) $m)->toArray();
+        $mealSource = 'db';
 
         $aliases = $this->aliases();
 
         $blocked = [];
         $warnings = [];
 
+        $blockedMeals = [];
+        $mealWarnings = [];
+
         foreach ($rulesArr as $r) {
+
+            if (($r['target_type'] ?? '') !== 'exercise') {
+                continue;
+            }
+
             $ck = mb_strtolower(trim($r['condition_keyword'] ?? ''));
             if ($ck === '') {
                 continue;
@@ -364,13 +384,101 @@ class HealthConditionController extends Controller
             }
         }
 
+        foreach ($rulesArr as $r) {
+
+            if (($r['target_type'] ?? '') !== 'meal') {
+                continue;
+            }
+
+            $ck = mb_strtolower(trim($r['condition_keyword'] ?? ''));
+
+            if ($ck === '') {
+                continue;
+            }
+
+            $matched = false;
+
+            foreach ($conditionNames as $cn) {
+
+                $mt = $r['match_type'] ?? 'partial';
+
+                if ($mt === 'exact' && $cn === $ck) {
+                    $matched = true;
+                    break;
+                }
+
+                if ($mt === 'partial' && str_contains($cn, $ck)) {
+                    $matched = true;
+                    break;
+                }
+            }
+
+            if (!$matched) {
+                continue;
+            }
+
+            $bk = mb_strtolower(trim($r['blocked_keyword'] ?? ''));
+
+            if ($bk === '') {
+                continue;
+            }
+
+            $severity = $r['severity_level'] ?? 'strict';
+
+            foreach ($meals as $meal) {
+
+                $ingredients = $meal['ingredients'] ?? '[]';
+
+                if (is_string($ingredients)) {
+                    $ingredients = json_decode($ingredients, true) ?? [];
+                }
+
+                $hay = mb_strtolower(
+                    ($meal['name'] ?? '') . ' ' .
+                    ($meal['description'] ?? '') . ' ' .
+                    implode(' ', $ingredients)
+                );
+
+                if (str_contains($hay, $bk)) {
+
+                    $item = [
+                        'meal_id' => $meal['id'],
+                        'name' => $meal['name'],
+                        'image' => $meal['image_url'] ?? null,
+                        'reason' => $r['reason'] ?? null,
+                        'severity_level' => $severity,
+                        'matched_condition' => $r['condition_keyword'] ?? null,
+                        'matched_keyword' => $r['blocked_keyword'] ?? null,
+                    ];
+
+                    if ($severity === 'strict') {
+
+                        $blockedMeals[$meal['id']] = $item;
+                        unset($mealWarnings[$meal['id']]);
+
+                    } else {
+
+                        if (!isset($blockedMeals[$meal['id']])) {
+                            $mealWarnings[$meal['id']] = $item;
+                        }
+                    }
+                }
+            }
+        }
+
         return response()->json([
             'conditions_used' => $conditionNames,
+
             'blocked_exercises' => array_values($blocked),
             'warnings' => array_values($warnings),
+
+            'blocked_meals' => array_values($blockedMeals),
+            'meal_warnings' => array_values($mealWarnings),
+
             'data_source' => [
                 'rules' => $rulesSource,
                 'exercises' => $exerciseSource,
+                'meals' => $mealSource,
             ],
         ]);
     }
