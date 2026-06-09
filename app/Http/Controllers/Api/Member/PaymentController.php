@@ -10,6 +10,7 @@ use App\Models\MemberMeal;
 use App\Models\Meal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 
@@ -52,15 +53,101 @@ class PaymentController extends Controller
 
     /**
      * POST /member/subscribe
-     * Body: { goal:cutting|bulking, plan_key:bronze|silver|gold, payment_method:... }
+     * Body:
+     * {
+     *   goal: cutting|bulking,
+     *   plan_key: bronze|silver|gold,
+     *   payment_method: cash|credit_card|debit_card,
+     *   card_holder_name: required for card payment,
+     *   card_number: required for card payment,
+     *   expiry_date: required for card payment, format MM/YY,
+     *   cvc: required for card payment
+     * }
      */
     public function subscribe(Request $request)
     {
-        $data = $request->validate([
+        $validator = Validator::make($request->all(), [
             'goal' => 'required|in:cutting,bulking',
             'plan_key' => 'required|in:bronze,silver,gold',
             'payment_method' => 'required|in:cash,credit_card,debit_card,bank_transfer,digital_wallet',
+
+            // Required only when payment method is credit_card or debit_card
+            'card_holder_name' => [
+                'required_if:payment_method,credit_card,debit_card',
+                'nullable',
+                'string',
+                'max:100',
+                'regex:/^[A-Z]+(?: [A-Z]+)*$/',
+            ],
+
+            'card_number' => [
+                'required_if:payment_method,credit_card,debit_card',
+                'nullable',
+                'digits:14',
+            ],
+
+            'expiry_date' => [
+                'required_if:payment_method,credit_card,debit_card',
+                'nullable',
+                'regex:/^(0[1-9]|1[0-2])\/\d{2}$/',
+            ],
+
+            'cvc' => [
+                'required_if:payment_method,credit_card,debit_card',
+                'nullable',
+                'digits:3',
+            ],
+        ], [
+            'goal.required' => 'Please select a goal first.',
+            'goal.in' => 'Invalid goal selected.',
+
+            'plan_key.required' => 'Please select a plan first.',
+            'plan_key.in' => 'Invalid plan selected.',
+
+            'payment_method.required' => 'Please select a payment method.',
+            'payment_method.in' => 'Invalid payment method.',
+
+            'card_holder_name.required_if' => 'Name on card is required.',
+            'card_holder_name.regex' => 'Name on card must be CAPITAL LETTERS only, exactly like the card.',
+            'card_holder_name.max' => 'Name on card is too long.',
+
+            'card_number.required_if' => 'Card number is required.',
+            'card_number.digits' => 'Card number must be exactly 14 digits.',
+
+            'expiry_date.required_if' => 'Expiry date is required.',
+            'expiry_date.regex' => 'Expiry date must be in MM/YY format.',
+
+            'cvc.required_if' => 'CVC is required.',
+            'cvc.digits' => 'CVC must be exactly 3 digits.',
         ]);
+
+        $validator->after(function ($validator) use ($request) {
+            $paymentMethod = $request->input('payment_method');
+
+            if (!in_array($paymentMethod, ['credit_card', 'debit_card'])) {
+                return;
+            }
+
+            $expiryDate = $request->input('expiry_date');
+
+            if (!$expiryDate || !preg_match('/^(0[1-9]|1[0-2])\/\d{2}$/', $expiryDate)) {
+                return;
+            }
+
+            [$month, $year] = explode('/', $expiryDate);
+
+            $month = (int) $month;
+            $year = 2000 + (int) $year;
+
+            $cardExpiry = Carbon::createFromDate($year, $month, 1)->endOfMonth();
+            $today = now()->startOfDay();
+
+            if ($cardExpiry->lt($today)) {
+                $validator->errors()->add('expiry_date', 'Card is expired.');
+            }
+        });
+
+        $data = $validator->validate();
 
         $profile = $request->user()->profile;
 
@@ -189,6 +276,11 @@ class PaymentController extends Controller
                 ]);
             }
 
+            /*
+             * Important:
+             * Do not store full card number or CVC in database.
+             * This is only a demo checkout validation.
+             */
             $payment = Payment::create([
                 'user_id' => $profileId,
                 'amount' => $plan['price'] ?? 0,
