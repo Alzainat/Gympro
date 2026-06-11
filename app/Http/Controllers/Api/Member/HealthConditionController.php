@@ -11,6 +11,7 @@ class HealthConditionController extends Controller
 {
     /**
      * Default in-code exercises dataset
+     * Used only if exercises table is empty or cannot be fetched.
      */
     private function defaultExercises(): array
     {
@@ -147,7 +148,45 @@ class HealthConditionController extends Controller
     }
 
     /**
-     * Default contraindication rules if DB table is empty
+     * Default in-code meals dataset
+     * Used only if meals table is empty or cannot be fetched.
+     */
+    private function defaultMeals(): array
+    {
+        return [
+            [
+                'id' => 2001,
+                'name' => 'Milk Oatmeal',
+                'description' => 'Oatmeal prepared with milk',
+                'ingredients' => ['oats', 'milk', 'banana'],
+                'image_url' => asset('storage/meals/milk-oatmeal.jpg'),
+            ],
+            [
+                'id' => 2002,
+                'name' => 'Cheese Sandwich',
+                'description' => 'Sandwich with cheese',
+                'ingredients' => ['bread', 'cheese'],
+                'image_url' => asset('storage/meals/cheese-sandwich.jpg'),
+            ],
+            [
+                'id' => 2003,
+                'name' => 'Yogurt Bowl',
+                'description' => 'Greek yogurt with fruit',
+                'ingredients' => ['yogurt', 'berries', 'honey'],
+                'image_url' => asset('storage/meals/yogurt-bowl.jpg'),
+            ],
+            [
+                'id' => 2004,
+                'name' => 'Chicken Salad',
+                'description' => 'Chicken salad without dairy',
+                'ingredients' => ['chicken', 'lettuce', 'tomato'],
+                'image_url' => asset('storage/meals/chicken-salad.jpg'),
+            ],
+        ];
+    }
+
+    /**
+     * Default contraindication rules if DB table is empty or cannot be fetched.
      */
     private function defaultRules(): array
     {
@@ -166,6 +205,12 @@ class HealthConditionController extends Controller
 
             ['condition_keyword' => 'ankle', 'target_type' => 'exercise', 'blocked_keyword' => 'jump', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Impact may worsen ankle pain'],
             ['condition_keyword' => 'ankle', 'target_type' => 'exercise', 'blocked_keyword' => 'run', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Impact cardio may irritate'],
+
+            // Meal rules
+            ['condition_keyword' => 'lactose', 'target_type' => 'meal', 'blocked_keyword' => 'milk', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Contains milk or dairy'],
+            ['condition_keyword' => 'lactose', 'target_type' => 'meal', 'blocked_keyword' => 'cheese', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Contains dairy'],
+            ['condition_keyword' => 'lactose', 'target_type' => 'meal', 'blocked_keyword' => 'yogurt', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Contains dairy'],
+            ['condition_keyword' => 'milk', 'target_type' => 'meal', 'blocked_keyword' => 'milk', 'match_type' => 'partial', 'severity_level' => 'warning', 'reason' => 'Contains milk'],
         ];
     }
 
@@ -176,15 +221,20 @@ class HealthConditionController extends Controller
     {
         return [
             'squat' => ['squat', 'squats', 'barbell squat', 'back squat', 'goblet squat'],
-            'lunge' => ['lunge', 'lunges', 'walking lunge'],
+            'lunge' => ['lunge', 'lunges', 'walking lunge', 'walking lunges'],
             'leg press' => ['leg press', 'legpress'],
             'deadlift' => ['deadlift', 'dead lift', 'romanian deadlift'],
             'bench' => ['bench', 'bench press'],
             'overhead press' => ['overhead press', 'over head press', 'shoulder press', 'military press'],
-            'pull up' => ['pull up', 'pull-up', 'pullups', 'chin up'],
-            'crunch' => ['crunch', 'crunches', 'sit up'],
-            'run' => ['run', 'running', 'treadmill', 'jog'],
+            'pull up' => ['pull up', 'pull-up', 'pullups', 'pull ups', 'chin up'],
+            'crunch' => ['crunch', 'crunches', 'sit up', 'sit-up'],
+            'run' => ['run', 'running', 'treadmill', 'jog', 'jogging'],
             'jump' => ['jump', 'jump rope', 'skipping', 'plyo'],
+
+            // Meal aliases
+            'milk' => ['milk', 'dairy', 'cheese', 'yogurt', 'yoghurt', 'cream', 'butter', 'lactose'],
+            'cheese' => ['cheese', 'mozzarella', 'cheddar', 'cream cheese'],
+            'yogurt' => ['yogurt', 'yoghurt', 'greek yogurt'],
         ];
     }
 
@@ -267,32 +317,91 @@ class HealthConditionController extends Controller
             ->values()
             ->all();
 
-        $rules = DB::table('contraindications')->get();
-
-        $rulesArr = $rules->map(fn($r) => (array) $r)->toArray();
+        /*
+         * Fetch contraindication rules from database.
+         * If table is empty or fetch fails, use defaultRules().
+         */
         $rulesSource = 'db';
 
-        if (count($rulesArr) === 0) {
+        try {
+            $rulesRows = DB::table('contraindications')->get();
+
+            if ($rulesRows->isEmpty()) {
+                $rulesArr = $this->defaultRules();
+                $rulesSource = 'fallback';
+            } else {
+                $rulesArr = $rulesRows
+                    ->map(fn($r) => [
+                        'condition_keyword' => mb_strtolower(trim($r->condition_keyword ?? '')),
+                        'target_type' => mb_strtolower(trim($r->target_type ?? '')),
+                        'blocked_keyword' => mb_strtolower(trim($r->blocked_keyword ?? '')),
+                        'match_type' => mb_strtolower(trim($r->match_type ?? 'partial')),
+                        'severity_level' => mb_strtolower(trim($r->severity_level ?? 'strict')),
+                        'reason' => $r->reason ?? null,
+                    ])
+                    ->toArray();
+            }
+        } catch (\Throwable $e) {
             $rulesArr = $this->defaultRules();
             $rulesSource = 'fallback';
         }
 
-        $exercises = DB::table('exercises')
-           ->get()
-           ->map(fn($e) => [
-              'id' => $e->id,
-              'name' => $e->name,
-              'target_muscle' => $e->target_muscle,
-              'equipment' => $e->equipment,
-              'difficulty' => $e->difficulty,
-              'image' => $e->image_url,
-            ])
-            ->toArray();
-
+        /*
+         * Fetch exercises from database.
+         * If exercises table is empty or fetch fails, use defaultExercises().
+         */
         $exerciseSource = 'db';
 
-        $meals = DB::table('meals')->get()->map(fn($m) => (array) $m)->toArray();
+        try {
+            $exerciseRows = DB::table('exercises')->get();
+
+            if ($exerciseRows->isEmpty()) {
+                $exercises = $this->defaultExercises();
+                $exerciseSource = 'fallback';
+            } else {
+                $exercises = $exerciseRows
+                    ->map(fn($e) => [
+                        'id' => $e->id,
+                        'name' => $e->name,
+                        'target_muscle' => $e->target_muscle ?? '',
+                        'equipment' => $e->equipment ?? '',
+                        'difficulty' => $e->difficulty ?? '',
+                        'image' => $e->image_url ?? $e->image ?? null,
+                    ])
+                    ->toArray();
+            }
+        } catch (\Throwable $e) {
+            $exercises = $this->defaultExercises();
+            $exerciseSource = 'fallback';
+        }
+
+        /*
+         * Fetch meals from database.
+         * If meals table is empty or fetch fails, use defaultMeals().
+         */
         $mealSource = 'db';
+
+        try {
+            $mealRows = DB::table('meals')->get();
+
+            if ($mealRows->isEmpty()) {
+                $meals = $this->defaultMeals();
+                $mealSource = 'fallback';
+            } else {
+                $meals = $mealRows
+                    ->map(fn($m) => [
+                        'id' => $m->id,
+                        'name' => $m->name,
+                        'description' => $m->description ?? '',
+                        'ingredients' => $m->ingredients ?? '[]',
+                        'image_url' => $m->image_url ?? $m->image ?? null,
+                    ])
+                    ->toArray();
+            }
+        } catch (\Throwable $e) {
+            $meals = $this->defaultMeals();
+            $mealSource = 'fallback';
+        }
 
         $aliases = $this->aliases();
 
@@ -302,20 +411,26 @@ class HealthConditionController extends Controller
         $blockedMeals = [];
         $mealWarnings = [];
 
+        /*
+         * Check exercise rules
+         */
         foreach ($rulesArr as $r) {
+            $targetType = mb_strtolower(trim($r['target_type'] ?? ''));
 
-            if (($r['target_type'] ?? '') !== 'exercise') {
+            if ($targetType !== 'exercise') {
                 continue;
             }
 
             $ck = mb_strtolower(trim($r['condition_keyword'] ?? ''));
+
             if ($ck === '') {
                 continue;
             }
 
             $matched = false;
+
             foreach ($conditionNames as $cn) {
-                $mt = $r['match_type'] ?? 'partial';
+                $mt = mb_strtolower(trim($r['match_type'] ?? 'partial'));
 
                 if ($mt === 'exact' && $cn === $ck) {
                     $matched = true;
@@ -333,14 +448,16 @@ class HealthConditionController extends Controller
             }
 
             $bk = mb_strtolower(trim($r['blocked_keyword'] ?? ''));
+
             if ($bk === '') {
                 continue;
             }
 
-            $severity = $r['severity_level'] ?? 'strict';
+            $severity = mb_strtolower(trim($r['severity_level'] ?? 'strict'));
             $searchTerms = $aliases[$bk] ?? [$bk];
 
             $found = [];
+
             foreach ($exercises as $e) {
                 $hay = mb_strtolower(
                     ($e['name'] ?? '') . ' ' .
@@ -351,6 +468,7 @@ class HealthConditionController extends Controller
 
                 foreach ($searchTerms as $term) {
                     $term = mb_strtolower(trim($term));
+
                     if ($term === '') {
                         continue;
                     }
@@ -384,9 +502,13 @@ class HealthConditionController extends Controller
             }
         }
 
+        /*
+         * Check meal rules
+         */
         foreach ($rulesArr as $r) {
+            $targetType = mb_strtolower(trim($r['target_type'] ?? ''));
 
-            if (($r['target_type'] ?? '') !== 'meal') {
+            if ($targetType !== 'meal') {
                 continue;
             }
 
@@ -399,8 +521,7 @@ class HealthConditionController extends Controller
             $matched = false;
 
             foreach ($conditionNames as $cn) {
-
-                $mt = $r['match_type'] ?? 'partial';
+                $mt = mb_strtolower(trim($r['match_type'] ?? 'partial'));
 
                 if ($mt === 'exact' && $cn === $ck) {
                     $matched = true;
@@ -423,14 +544,24 @@ class HealthConditionController extends Controller
                 continue;
             }
 
-            $severity = $r['severity_level'] ?? 'strict';
+            $severity = mb_strtolower(trim($r['severity_level'] ?? 'strict'));
+            $searchTerms = $aliases[$bk] ?? [$bk];
 
             foreach ($meals as $meal) {
-
-                $ingredients = $meal['ingredients'] ?? '[]';
+                $ingredients = $meal['ingredients'] ?? [];
 
                 if (is_string($ingredients)) {
-                    $ingredients = json_decode($ingredients, true) ?? [];
+                    $decoded = json_decode($ingredients, true);
+
+                    if (is_array($decoded)) {
+                        $ingredients = $decoded;
+                    } else {
+                        $ingredients = [$ingredients];
+                    }
+                }
+
+                if (!is_array($ingredients)) {
+                    $ingredients = [];
                 }
 
                 $hay = mb_strtolower(
@@ -439,28 +570,41 @@ class HealthConditionController extends Controller
                     implode(' ', $ingredients)
                 );
 
-                if (str_contains($hay, $bk)) {
+                $mealMatched = false;
 
-                    $item = [
-                        'meal_id' => $meal['id'],
-                        'name' => $meal['name'],
-                        'image' => $meal['image_url'] ?? null,
-                        'reason' => $r['reason'] ?? null,
-                        'severity_level' => $severity,
-                        'matched_condition' => $r['condition_keyword'] ?? null,
-                        'matched_keyword' => $r['blocked_keyword'] ?? null,
-                    ];
+                foreach ($searchTerms as $term) {
+                    $term = mb_strtolower(trim($term));
 
-                    if ($severity === 'strict') {
+                    if ($term === '') {
+                        continue;
+                    }
 
-                        $blockedMeals[$meal['id']] = $item;
-                        unset($mealWarnings[$meal['id']]);
+                    if (str_contains($hay, $term)) {
+                        $mealMatched = true;
+                        break;
+                    }
+                }
 
-                    } else {
+                if (!$mealMatched) {
+                    continue;
+                }
 
-                        if (!isset($blockedMeals[$meal['id']])) {
-                            $mealWarnings[$meal['id']] = $item;
-                        }
+                $item = [
+                    'meal_id' => $meal['id'],
+                    'name' => $meal['name'],
+                    'image' => $meal['image_url'] ?? $meal['image'] ?? null,
+                    'reason' => $r['reason'] ?? null,
+                    'severity_level' => $severity,
+                    'matched_condition' => $r['condition_keyword'] ?? null,
+                    'matched_keyword' => $r['blocked_keyword'] ?? null,
+                ];
+
+                if ($severity === 'strict') {
+                    $blockedMeals[$meal['id']] = $item;
+                    unset($mealWarnings[$meal['id']]);
+                } else {
+                    if (!isset($blockedMeals[$meal['id']])) {
+                        $mealWarnings[$meal['id']] = $item;
                     }
                 }
             }
